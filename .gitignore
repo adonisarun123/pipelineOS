@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+*.sqlite3
+*.sqlite3-journal
+.coverage*
+htmlcov/
+.env
+node_modules/
+frontend/dist/
+.DS_Store
+nohup.out
+probe.sqlite3*

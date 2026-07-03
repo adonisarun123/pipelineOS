@@ -1,0 +1,7 @@
+Django>=5.2,<6
+djangorestframework>=3.15
+pytest>=8
+pytest-django>=4.8
+pytest-cov>=5
+ruff>=0.5
+# Production (MySQL 8): mysqlclient>=2.2
