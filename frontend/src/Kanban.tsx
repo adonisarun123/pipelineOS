@@ -4,6 +4,25 @@ import DealDetail from "./DealDetail";
 import ScheduleDialog from "./ScheduleDialog";
 import type { Deal, Kanban as KanbanData, LostReason, Paginated, Pipeline } from "./types";
 
+function ExportButton({ pid }: { pid: number | null }) {
+  const auth = JSON.parse(localStorage.getItem("auth") ?? "null") as
+    { token: string; role: string } | null;
+  if (!auth || (auth.role !== "admin" && auth.role !== "manager")) return null;
+  const BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? "";
+  const download = async () => {
+    const r = await fetch(`${BASE}/api/v1/deals/export/${pid ? `?pipeline=${pid}` : ""}`, {
+      headers: { Authorization: `Token ${auth.token}` },
+    });
+    const blob = await r.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "deals.csv";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+  return <button className="ghost" onClick={() => void download()}>Export CSV</button>;
+}
+
 export default function Kanban() {
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [pid, setPid] = useState<number | null>(null);
@@ -89,6 +108,7 @@ export default function Kanban() {
             onChange={(e) => { setMineOnly(e.target.checked); if (pid !== null) void load(pid, e.target.checked); }} />
           My deals only
         </label>
+        <ExportButton pid={pid} />
         <span className="err">{err}</span>
       </div>
       <form className="quickadd" onSubmit={quickAdd}>

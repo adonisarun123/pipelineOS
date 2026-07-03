@@ -34,6 +34,19 @@ export interface Deal {
   status: "open" | "won" | "lost";
   is_rotten: boolean;
   needs_next_activity: boolean;
+  custom: Record<string, unknown>;
+}
+
+export interface CustomFieldDef {
+  id: number;
+  entity: string;
+  name: string;
+  key: string;
+  field_type: string;
+  options: string[];
+  is_important: boolean;
+  pipeline: number | null;
+  order: number;
 }
 
 export interface KanbanColumn {

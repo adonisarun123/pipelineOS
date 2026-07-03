@@ -27,6 +27,10 @@ class LoginView(ObtainAuthToken):
         response.data.update(
             {"user_id": user.id, "username": user.username, "role": user.role}
         )
+        if user.tenant_id:
+            from crm import audit
+
+            audit.log(actor=user, action="login", request=request, tenant_id=user.tenant_id)
         return response
 
 
@@ -89,6 +93,24 @@ class DealViewSet(viewsets.ModelViewSet):
             qs = qs.filter(value__gte=p["min_value"])
         if p.get("max_value"):
             qs = qs.filter(value__lte=p["max_value"])
+        for param, val in p.items():  # CF-3: ?cf_<key>=value equality via typed table
+            if not param.startswith("cf_") or not val:
+                continue
+            from django.db.models import Q as _Q
+
+            from crm.custom_fields import CustomFieldValue
+
+            key = param[3:]
+            vq = CustomFieldValue.objects.filter(definition__entity="deal",
+                                                 definition__key=key)
+            cond = _Q(value_text=val)
+            from decimal import Decimal, InvalidOperation
+
+            try:
+                cond |= _Q(value_number=Decimal(val))
+            except InvalidOperation:
+                pass  # non-numeric input can't match the number column
+            qs = qs.filter(pk__in=vq.filter(cond).values("record_id"))
         return qs
 
     def perform_create(self, serializer):
@@ -102,6 +124,48 @@ class DealViewSet(viewsets.ModelViewSet):
             owner=serializer.validated_data.get("owner"),
             expected_close_date=serializer.validated_data.get("expected_close_date"),
         )
+
+    @action(detail=True, methods=["post"])
+    def set_custom(self, request, pk=None):
+        """CF-3: set custom field values {key: value}; null clears."""
+        from crm import custom_fields
+
+        deal = self.get_object()
+        cache = custom_fields.set_custom_values(deal, "deal", dict(request.data), request.user)
+        return Response({"custom": cache})
+
+    @action(detail=False, methods=["get"])
+    def export(self, request):
+        """I-3: CSV export of the current filtered list — audit-logged."""
+        import csv
+
+        from django.http import HttpResponse as DjangoResponse
+
+        from crm import audit
+
+        if request.user.role not in ("admin", "manager"):
+            return Response({"detail": "Export requires admin or manager role."}, status=403)
+        qs = self.get_queryset().select_related("pipeline", "lost_reason")
+        resp = DjangoResponse(content_type="text/csv")
+        resp["Content-Disposition"] = "attachment; filename=deals.csv"
+        w = csv.writer(resp)
+        w.writerow(["id", "title", "value", "currency", "pipeline", "stage", "status",
+                    "owner", "organization", "expected_close_date", "lost_reason",
+                    "created_at", "custom"])
+        count = 0
+        for d in qs:
+            w.writerow([d.id, d.title, d.value, d.currency, d.pipeline.name, d.stage.name,
+                        d.status, d.owner.username,
+                        d.organization.name if d.organization else "",
+                        d.expected_close_date or "",
+                        d.lost_reason.label if d.lost_reason else "",
+                        d.created_at.isoformat(), d.custom])
+            count += 1
+        audit.log(actor=request.user, action="export", model_name="deal",
+                  detail={"row_count": count,
+                          "filters": dict(request.query_params.items())},
+                  request=request)
+        return resp
 
     @action(detail=True, methods=["post"])
     def move(self, request, pk=None):
@@ -364,4 +428,55 @@ class ImportView(APIView):
             strategy=request.data.get("strategy", "skip"),
             user=request.user, dry_run=dry_run,
         )
+        if not dry_run:
+            from crm import audit
+
+            audit.log(actor=request.user, action="import", model_name="person",
+                      detail={"total": report.total, "created": report.created,
+                              "updated": report.updated, "errors": len(report.errors)},
+                      request=request)
         return Response({"mapping": mapping, "dry_run": dry_run, **report.as_dict()})
+
+
+class CustomFieldDefViewSet(viewsets.ModelViewSet):
+    """CF-1: admin-defined fields."""
+
+    pagination_class = None
+
+    def get_serializer_class(self):
+        from .serializers import CustomFieldDefSerializer
+
+        return CustomFieldDefSerializer
+
+    def get_queryset(self):
+        from crm.custom_fields import CustomFieldDef
+
+        qs = CustomFieldDef.objects.all()
+        entity = self.request.query_params.get("entity")
+        return qs.filter(entity=entity) if entity else qs
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if request.method not in ("GET", "HEAD", "OPTIONS") and request.user.role != "admin":
+            self.permission_denied(request, message="Only admins configure custom fields.")
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+
+class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
+    """U-4: admin-searchable."""
+
+    def get_serializer_class(self):
+        from .serializers import AuditLogSerializer
+
+        return AuditLogSerializer
+
+    def get_queryset(self):
+        from crm.audit import AuditLog
+
+        if not self.request.user.is_admin_role:
+            return AuditLog.objects.none()
+        qs = AuditLog.objects.select_related("actor")
+        action_f = self.request.query_params.get("action")
+        return qs.filter(action=action_f) if action_f else qs

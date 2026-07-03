@@ -7,6 +7,7 @@ from django.utils import timezone
 
 from accounts.models import Team, User
 from crm import services
+from crm.custom_fields import CustomFieldDef
 from crm.leads import Lead, LeadSource
 from crm.models import Activity, ActivityType, LostReason, Organization, Pipeline, Stage
 from tenants.context import tenant_context
@@ -92,6 +93,17 @@ class Command(BaseCommand):
             )
             rotten.stage_entered_at = now - timedelta(days=10)
             rotten.save(update_fields=["stage_entered_at"])
+
+            # Custom fields (CF-2 example: "Event Date" is important for Trebound)
+            for order, (name, key, ftype, opts, imp) in enumerate([
+                ("Event Date", "event_date", "date", [], True),
+                ("Headcount", "headcount", "number", [], True),
+                ("Venue Type", "venue_type", "single_select",
+                 ["Resort", "Office", "Outdoor", "Virtual"], False),
+                ("Advance Received", "advance_received", "checkbox", [], False),
+            ]):
+                CustomFieldDef(entity="deal", name=name, key=key, field_type=ftype,
+                               options=opts, is_important=imp, order=order).save()
 
             # Lead sources + demo leads (L-1/L-2)
             sources = {}

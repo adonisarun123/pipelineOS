@@ -15,6 +15,7 @@ class Organization(TenantModel):
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
     )
+    custom = models.JSONField(default=dict, blank=True)  # CF-4 read cache
 
     class Meta(TenantModel.Meta):
         indexes = [models.Index(fields=["tenant", "name"])]
@@ -36,6 +37,7 @@ class Person(TenantModel):
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
     )
     marketing_consent = models.BooleanField(default=False)  # DPDPA
+    custom = models.JSONField(default=dict, blank=True)  # CF-4 read cache
 
     @property
     def name(self) -> str:
@@ -119,6 +121,7 @@ class Deal(TenantModel):
     lost_reason = models.ForeignKey(LostReason, null=True, blank=True, on_delete=models.PROTECT)
     closed_at = models.DateTimeField(null=True, blank=True)
     stage_entered_at = models.DateTimeField(default=timezone.now)
+    custom = models.JSONField(default=dict, blank=True)  # CF-4 read cache
 
     class Meta(TenantModel.Meta):
         indexes = [
@@ -214,5 +217,7 @@ class Note(TenantModel):
         indexes = [models.Index(fields=["tenant", "deal", "created_at"])]
 
 
-# Leads module lives in leads.py; import registers models with the app registry.
+# Sibling modules; imports register models with the app registry.
+from .audit import AuditLog  # noqa: E402,F401
+from .custom_fields import CustomFieldDef, CustomFieldValue  # noqa: E402,F401
 from .leads import Lead, LeadSource  # noqa: E402,F401

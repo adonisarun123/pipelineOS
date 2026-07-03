@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, inr } from "./api";
+import CustomFields from "./CustomFields";
 import ScheduleDialog from "./ScheduleDialog";
 import type { Deal } from "./types";
 
@@ -82,6 +83,8 @@ export default function DealDetail({ dealId, onClose, onChanged }: {
         <div style={{ display: "flex", gap: 8, margin: "14px 0" }}>
           <button onClick={() => setScheduling(true)}>+ Schedule activity</button>
         </div>
+        <CustomFields dealId={deal.id} pipelineId={deal.pipeline}
+          values={deal.custom ?? {}} onSaved={() => { void load(); onChanged(); }} />
         <form onSubmit={addNote} style={{ display: "flex", gap: 8 }}>
           <input name="body" placeholder="Add a note…" style={{ flex: 1 }} />
           <button className="ghost">Add</button>

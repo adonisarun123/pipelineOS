@@ -30,14 +30,16 @@ class PipelineSerializer(serializers.ModelSerializer):
 class OrganizationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organization
-        fields = ["id", "name", "industry", "website", "gstin", "owner"]
+        fields = ["id", "name", "industry", "website", "gstin", "owner", "custom"]
+        read_only_fields = ["custom"]
 
 
 class PersonSerializer(serializers.ModelSerializer):
     class Meta:
         model = Person
         fields = ["id", "first_name", "last_name", "job_title", "organization",
-                  "owner", "marketing_consent"]
+                  "owner", "marketing_consent", "custom"]
+        read_only_fields = ["custom"]
 
 
 class LostReasonSerializer(serializers.ModelSerializer):
@@ -75,8 +77,8 @@ class DealSerializer(serializers.ModelSerializer):
         fields = ["id", "title", "value", "currency", "pipeline", "stage", "owner",
                   "owner_name", "organization", "organization_name", "expected_close_date",
                   "probability", "status", "lost_reason", "closed_at", "stage_entered_at",
-                  "is_rotten", "needs_next_activity"]
-        read_only_fields = ["status", "lost_reason", "closed_at", "stage_entered_at"]
+                  "is_rotten", "needs_next_activity", "custom"]
+        read_only_fields = ["status", "lost_reason", "closed_at", "stage_entered_at", "custom"]
         extra_kwargs = {"owner": {"required": False}, "stage": {"required": False}}
 
     def get_is_rotten(self, obj) -> bool:
@@ -129,3 +131,23 @@ class NoteSerializer(serializers.ModelSerializer):
         model = Note
         fields = ["id", "body", "author", "author_name", "deal", "person", "lead", "created_at"]
         read_only_fields = ["author"]
+
+
+class CustomFieldDefSerializer(serializers.ModelSerializer):
+    class Meta:
+        from crm.custom_fields import CustomFieldDef
+
+        model = CustomFieldDef
+        fields = ["id", "entity", "name", "key", "field_type", "options",
+                  "is_important", "pipeline", "order"]
+
+
+class AuditLogSerializer(serializers.ModelSerializer):
+    actor_name = serializers.CharField(source="actor.username", read_only=True, default=None)
+
+    class Meta:
+        from crm.audit import AuditLog
+
+        model = AuditLog
+        fields = ["id", "actor", "actor_name", "action", "model_name", "object_id",
+                  "detail", "ip", "created_at"]

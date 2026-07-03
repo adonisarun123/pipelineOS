@@ -12,6 +12,8 @@ router.register("people", views.PersonViewSet, basename="person")
 router.register("leads", views.LeadViewSet, basename="lead")
 router.register("lead-sources", views.LeadSourceViewSet, basename="leadsource")
 router.register("activity-types", views.ActivityTypeViewSet, basename="activitytype")
+router.register("custom-fields", views.CustomFieldDefViewSet, basename="customfield")
+router.register("audit", views.AuditLogViewSet, basename="audit")
 router.register("lost-reasons", views.LostReasonViewSet, basename="lostreason")
 
 urlpatterns = [
