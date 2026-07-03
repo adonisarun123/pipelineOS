@@ -35,6 +35,18 @@ export interface Deal {
   is_rotten: boolean;
   needs_next_activity: boolean;
   custom: Record<string, unknown>;
+  value_auto: boolean;
+}
+
+export interface PipelineSummary {
+  open_count: number;
+  open_value: string;
+  weighted_forecast: string;
+  rotting: number;
+  needs_next_activity: number;
+  added_this_month: number;
+  won_this_month: { count: number; value: string };
+  lost_this_month: { count: number; value: string };
 }
 
 export interface CustomFieldDef {

@@ -9,7 +9,15 @@ from accounts.models import Team, User
 from crm import services
 from crm.custom_fields import CustomFieldDef
 from crm.leads import Lead, LeadSource
-from crm.models import Activity, ActivityType, LostReason, Organization, Pipeline, Stage
+from crm.models import (
+    Activity,
+    ActivityType,
+    LostReason,
+    Organization,
+    Pipeline,
+    Product,
+    Stage,
+)
 from tenants.context import tenant_context
 from tenants.models import Tenant
 
@@ -94,16 +102,27 @@ class Command(BaseCommand):
             rotten.stage_entered_at = now - timedelta(days=10)
             rotten.save(update_fields=["stage_entered_at"])
 
+            # Product catalogue (PR-1)
+            for pname, cat, price in [
+                ("Outbound Team Building — Full Day", "Outbound", 2500),
+                ("Indoor Team Games — Half Day", "Indoor", 1200),
+                ("Leadership Workshop", "Workshop", 4000),
+                ("Resort Venue — Coorg (per head)", "Venue", 3500),
+                ("Transport — AC Coach (per bus)", "Logistics", 15000),
+            ]:
+                Product(name=pname, category=cat, unit_price=price).save()
+
             # Custom fields (CF-2 example: "Event Date" is important for Trebound)
-            for order, (name, key, ftype, opts, imp) in enumerate([
-                ("Event Date", "event_date", "date", [], True),
-                ("Headcount", "headcount", "number", [], True),
+            for order, (name, key, ftype, opts, imp, nudge) in enumerate([
+                ("Event Date", "event_date", "date", [], True, 2),   # nudge at Proposal Sent
+                ("Headcount", "headcount", "number", [], True, 2),
                 ("Venue Type", "venue_type", "single_select",
-                 ["Resort", "Office", "Outdoor", "Virtual"], False),
-                ("Advance Received", "advance_received", "checkbox", [], False),
+                 ["Resort", "Office", "Outdoor", "Virtual"], False, None),
+                ("Advance Received", "advance_received", "checkbox", [], False, None),
             ]):
                 CustomFieldDef(entity="deal", name=name, key=key, field_type=ftype,
-                               options=opts, is_important=imp, order=order).save()
+                               options=opts, is_important=imp, order=order,
+                               nudge_stage_order=nudge).save()
 
             # Lead sources + demo leads (L-1/L-2)
             sources = {}

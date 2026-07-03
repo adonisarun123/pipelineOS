@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, inr } from "./api";
 import CustomFields from "./CustomFields";
+import LineItems from "./LineItems";
 import ScheduleDialog from "./ScheduleDialog";
 import type { Deal } from "./types";
 
@@ -85,6 +86,8 @@ export default function DealDetail({ dealId, onClose, onChanged }: {
         </div>
         <CustomFields dealId={deal.id} pipelineId={deal.pipeline}
           values={deal.custom ?? {}} onSaved={() => { void load(); onChanged(); }} />
+        <LineItems dealId={deal.id} valueAuto={deal.value_auto}
+          onChanged={() => { void load(); onChanged(); }} />
         <form onSubmit={addNote} style={{ display: "flex", gap: 8 }}>
           <input name="body" placeholder="Add a note…" style={{ flex: 1 }} />
           <button className="ghost">Add</button>

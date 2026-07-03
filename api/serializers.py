@@ -77,7 +77,7 @@ class DealSerializer(serializers.ModelSerializer):
         fields = ["id", "title", "value", "currency", "pipeline", "stage", "owner",
                   "owner_name", "organization", "organization_name", "expected_close_date",
                   "probability", "status", "lost_reason", "closed_at", "stage_entered_at",
-                  "is_rotten", "needs_next_activity", "custom"]
+                  "is_rotten", "needs_next_activity", "custom", "value_auto"]
         read_only_fields = ["status", "lost_reason", "closed_at", "stage_entered_at", "custom"]
         extra_kwargs = {"owner": {"required": False}, "stage": {"required": False}}
 
@@ -204,3 +204,27 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = ["id", "username", "email", "role", "team", "team_name", "is_active"]
         read_only_fields = ["username", "is_active"]
+
+
+class ProductSerializer(serializers.ModelSerializer):
+    class Meta:
+        from crm.models import Product
+
+        model = Product
+        fields = ["id", "name", "sku", "category", "unit_price", "tax_rate", "is_active"]
+
+
+class DealLineItemSerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source="product.name", read_only=True)
+    subtotal = serializers.SerializerMethodField()
+
+    class Meta:
+        from crm.models import DealLineItem
+
+        model = DealLineItem
+        fields = ["id", "product", "product_name", "quantity", "unit_price",
+                  "discount_pct", "tax_rate", "subtotal"]
+        extra_kwargs = {"unit_price": {"required": False}, "tax_rate": {"required": False}}
+
+    def get_subtotal(self, obj) -> str:
+        return str(obj.subtotal)

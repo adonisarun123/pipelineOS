@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import { api, inr } from "./api";
 import DealDetail from "./DealDetail";
 import ScheduleDialog from "./ScheduleDialog";
-import type { Deal, Kanban as KanbanData, LostReason, Paginated, Pipeline } from "./types";
+import type {
+  Deal, Kanban as KanbanData, LostReason, Paginated, Pipeline, PipelineSummary,
+} from "./types";
 
 function ExportButton({ pid }: { pid: number | null }) {
   const auth = JSON.parse(localStorage.getItem("auth") ?? "null") as
@@ -32,9 +34,12 @@ export default function Kanban() {
   const [openDeal, setOpenDeal] = useState<number | null>(null);
   const [scheduleFor, setScheduleFor] = useState<{ id: number; title: string } | null>(null);
   const [mineOnly, setMineOnly] = useState(false);
+  const [summary, setSummary] = useState<PipelineSummary | null>(null);
+  const [nudges, setNudges] = useState<string[]>([]);
 
   const load = useCallback(async (p: number, mine = mineOnly) => {
     setBoard(await api<KanbanData>(`/pipelines/${p}/kanban/${mine ? "?owner=me" : ""}`));
+    setSummary(await api<PipelineSummary>(`/pipelines/${p}/summary/`));
   }, [mineOnly]);
 
   useEffect(() => {
@@ -55,8 +60,10 @@ export default function Kanban() {
     e.currentTarget.classList.remove("dragover");
     const dealId = e.dataTransfer.getData("text/plain");
     try {
-      await api(`/deals/${dealId}/move/`, { method: "POST", body: { stage_id: stageId } });
+      const moved = await api<Deal & { nudges: string[] }>(
+        `/deals/${dealId}/move/`, { method: "POST", body: { stage_id: stageId } });
       setErr("");
+      setNudges(moved.nudges ?? []); // CF-2: prompt, don't block
     } catch {
       setErr("Move failed");
     }
@@ -110,7 +117,24 @@ export default function Kanban() {
         </label>
         <ExportButton pid={pid} />
         <span className="err">{err}</span>
+        {summary && (
+          <span style={{ marginLeft: "auto", color: "var(--muted)", fontSize: 13 }}>
+            {summary.open_count} open · {inr(summary.open_value)} · forecast{" "}
+            {inr(summary.weighted_forecast)} ·{" "}
+            <span style={{ color: summary.rotting ? "var(--rot)" : "inherit" }}>
+              🥀 {summary.rotting}
+            </span>{" "}
+            · ⚠ {summary.needs_next_activity} · W {summary.won_this_month.count}/L{" "}
+            {summary.lost_this_month.count} this month
+          </span>
+        )}
       </div>
+      {nudges.length > 0 && (
+        <div className="dupewarn" style={{ margin: "8px 20px 0" }}>
+          ⚠ Before this stage, fill in: <strong>{nudges.join(", ")}</strong>{" "}
+          <a href="#" onClick={(e) => { e.preventDefault(); setNudges([]); }}>dismiss</a>
+        </div>
+      )}
       <form className="quickadd" onSubmit={quickAdd}>
         <input name="title" placeholder="New deal title…" />
         <input name="value" type="number" placeholder="Value (INR)" />

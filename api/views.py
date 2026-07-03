@@ -69,6 +69,11 @@ class PipelineViewSet(viewsets.ReadOnlyModelViewSet):
         return Response({"pipeline": {"id": pipeline.id, "name": pipeline.name},
                          "columns": columns})
 
+    @action(detail=True, methods=["get"])
+    def summary(self, request, pk=None):
+        """R-1 (Phase 1 basic pipeline summary)."""
+        return Response(services.pipeline_summary(self.get_object(), request.user))
+
 
 class DealViewSet(viewsets.ModelViewSet):
     serializer_class = DealSerializer
@@ -125,6 +130,49 @@ class DealViewSet(viewsets.ModelViewSet):
             expected_close_date=serializer.validated_data.get("expected_close_date"),
         )
 
+    @action(detail=True, methods=["get", "post"])
+    def line_items(self, request, pk=None):
+        """PR-2: list/add line items; recomputes value when value_auto."""
+        from crm.models import DealLineItem, Product
+
+        from .serializers import DealLineItemSerializer
+
+        deal = self.get_object()
+        if request.method == "POST":
+            product = get_object_or_404(Product, pk=request.data.get("product"))
+            serializer = DealLineItemSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            item = DealLineItem(deal=deal, created_by=request.user,
+                                **{k: v for k, v in serializer.validated_data.items()
+                                   if k != "product"}, product=product)
+            if "unit_price" not in serializer.validated_data:
+                item.unit_price = product.unit_price
+            if "tax_rate" not in serializer.validated_data:
+                item.tax_rate = product.tax_rate
+            item.save()
+            services.recompute_deal_value(deal)
+        items = deal.line_items.select_related("product")
+        return Response({
+            "items": DealLineItemSerializer(items, many=True).data,
+            "deal_value": str(deal.value), "value_auto": deal.value_auto,
+        })
+
+    @action(detail=True, methods=["delete"],
+            url_path=r"line_items/(?P<item_id>\d+)")
+    def remove_line_item(self, request, pk=None, item_id=None):
+        from crm.models import DealLineItem
+
+        deal = self.get_object()
+        item = get_object_or_404(DealLineItem, pk=item_id, deal=deal)
+        item.is_deleted = True
+        item.save(update_fields=["is_deleted", "updated_at"])
+        services.recompute_deal_value(deal)
+        return Response({"deal_value": str(deal.value)})
+
+    def perform_update(self, serializer):
+        deal = serializer.save()
+        services.recompute_deal_value(deal)
+
     @action(detail=True, methods=["post"])
     def set_custom(self, request, pk=None):
         """CF-3: set custom field values {key: value}; null clears."""
@@ -171,8 +219,11 @@ class DealViewSet(viewsets.ModelViewSet):
     def move(self, request, pk=None):
         deal = self.get_object()
         stage = get_object_or_404(Stage, pk=request.data.get("stage_id"))
+        nudges = services.stage_nudges(deal, stage)  # CF-2: prompt, don't block
         services.change_stage(deal, stage, request.user)
-        return Response(DealSerializer(deal).data)
+        data = DealSerializer(deal).data
+        data["nudges"] = nudges
+        return Response(data)
 
     @action(detail=True, methods=["get"])
     def timeline(self, request, pk=None):
@@ -602,3 +653,23 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         audit.log(actor=request.user, action="update", model_name="user",
                   object_id=user.id, detail={"deactivated": True}, request=request)
         return Response({"deactivated": user.username})
+
+
+class ProductViewSet(viewsets.ModelViewSet):
+    """PR-1."""
+
+    def get_serializer_class(self):
+        from .serializers import ProductSerializer
+
+        return ProductSerializer
+
+    def get_queryset(self):
+        from crm.models import Product
+
+        qs = Product.objects.all()
+        if self.request.query_params.get("active") == "1":
+            qs = qs.filter(is_active=True)
+        return qs
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)

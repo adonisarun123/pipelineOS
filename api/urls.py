@@ -16,6 +16,7 @@ router.register("custom-fields", views.CustomFieldDefViewSet, basename="customfi
 router.register("audit", views.AuditLogViewSet, basename="audit")
 router.register("saved-views", views.SavedViewViewSet, basename="savedview")
 router.register("users", views.UserViewSet, basename="user")
+router.register("products", views.ProductViewSet, basename="product")
 router.register("lost-reasons", views.LostReasonViewSet, basename="lostreason")
 
 urlpatterns = [

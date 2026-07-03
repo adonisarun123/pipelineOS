@@ -37,6 +37,8 @@ class CustomFieldDef(TenantModel):
     field_type = models.CharField(max_length=15, choices=Type.choices)
     options = models.JSONField(default=list, blank=True)  # select choices
     is_important = models.BooleanField(default=False)  # CF-2: shown prominently
+    nudge_stage_order = models.PositiveIntegerField(  # CF-2: nudge if empty at/after this stage
+        null=True, blank=True)
     pipeline = models.ForeignKey(  # CF-2: per-pipeline visibility (null = all)
         "crm.Pipeline", null=True, blank=True, on_delete=models.CASCADE
     )

@@ -389,3 +389,61 @@ def person_timeline(person) -> list[dict]:
                        "deal_id": d.id,
                        "summary": f"Deal: {d.title} ({d.status}, {d.stage.name})"})
     return sorted(events, key=lambda e: (e["at"] is None, e["at"]), reverse=True)
+
+
+# ---------------- Products & line items (PR-1/PR-2) ----------------
+
+def recompute_deal_value(deal: Deal) -> Deal:
+    """PR-2: deal value = Σ line subtotals (pre-tax) when value_auto is on."""
+    if not deal.value_auto:
+        return deal
+    total = sum((li.subtotal for li in deal.line_items.all()), Decimal("0"))
+    deal.value = total.quantize(Decimal("0.01"))
+    deal.save(update_fields=["value", "updated_at"])
+    return deal
+
+
+def stage_nudges(deal: Deal, target_stage: Stage) -> list[str]:
+    """CF-2: important fields empty at/after their nudge stage → prompt, don't block."""
+    from .custom_fields import CustomFieldDef
+
+    defs = CustomFieldDef.objects.filter(
+        entity="deal", nudge_stage_order__isnull=False,
+        nudge_stage_order__lte=target_stage.order,
+    ).filter(Q(pipeline__isnull=True) | Q(pipeline_id=deal.pipeline_id))
+    return [d.name for d in defs if not deal.custom.get(d.key)]
+
+
+def pipeline_summary(pipeline, user: User) -> dict:
+    """R-1 (Phase 1 basic): open value, weighted forecast, rotting, no-next-step, month W/L."""
+
+    deals = annotate_flags(
+        visible_deals(user).filter(pipeline=pipeline).select_related("stage"))
+    month_start = timezone.localtime().replace(day=1, hour=0, minute=0, second=0,
+                                               microsecond=0)
+    open_value = Decimal("0")
+    weighted = Decimal("0")
+    rotting = no_next = open_count = 0
+    for d in deals:
+        if d.status == Deal.Status.OPEN:
+            open_count += 1
+            open_value += d.value
+            prob = d.probability if d.probability is not None else (d.stage.probability or 0)
+            weighted += d.value * Decimal(prob) / Decimal(100)
+            if deal_is_rotten(d):
+                rotting += 1
+            if deal_needs_next_activity(d):
+                no_next += 1
+    won = deals.filter(status=Deal.Status.WON, closed_at__gte=month_start)
+    lost = deals.filter(status=Deal.Status.LOST, closed_at__gte=month_start)
+    added = deals.filter(created_at__gte=month_start).count()
+    return {
+        "open_count": open_count, "open_value": str(open_value),
+        "weighted_forecast": str(weighted.quantize(Decimal("0.01"))),
+        "rotting": rotting, "needs_next_activity": no_next,
+        "added_this_month": added,
+        "won_this_month": {"count": won.count(),
+                           "value": str(sum((d.value for d in won), Decimal("0")))},
+        "lost_this_month": {"count": lost.count(),
+                            "value": str(sum((d.value for d in lost), Decimal("0")))},
+    }

@@ -122,6 +122,7 @@ class Deal(TenantModel):
     closed_at = models.DateTimeField(null=True, blank=True)
     stage_entered_at = models.DateTimeField(default=timezone.now)
     custom = models.JSONField(default=dict, blank=True)  # CF-4 read cache
+    value_auto = models.BooleanField(default=False)  # PR-2: auto-sum line items
 
     class Meta(TenantModel.Meta):
         indexes = [
@@ -239,3 +240,40 @@ class SavedView(TenantModel):
 
     class Meta(TenantModel.Meta):
         ordering = ["name"]
+
+
+class Product(TenantModel):
+    """PR-1: catalogue (Trebound: activities/venues/packages)."""
+
+    name = models.CharField(max_length=255)
+    sku = models.CharField(max_length=60, blank=True)
+    category = models.CharField(max_length=100, blank=True)
+    unit_price = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=18)  # GST %
+    is_active = models.BooleanField(default=True)
+
+    class Meta(TenantModel.Meta):
+        indexes = [models.Index(fields=["tenant", "name"])]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class DealLineItem(TenantModel):
+    """PR-2: per-deal line items; unit price editable per deal."""
+
+    deal = models.ForeignKey(Deal, on_delete=models.CASCADE, related_name="line_items")
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name="+")
+    quantity = models.DecimalField(max_digits=10, decimal_places=2, default=1)
+    unit_price = models.DecimalField(max_digits=14, decimal_places=2)
+    discount_pct = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=18)
+
+    @property
+    def subtotal(self):
+        """Pre-tax, post-discount. Deal value auto-sum uses this (pipeline value excl. GST)."""
+        from decimal import Decimal
+
+        gross = self.quantity * self.unit_price
+        return (gross * (Decimal("100") - self.discount_pct) / Decimal("100")).quantize(
+            Decimal("0.01"))
