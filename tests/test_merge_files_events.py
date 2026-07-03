@@ -113,7 +113,11 @@ def test_events_fire_post_commit_and_sign_webhooks(
         ctx, monkeypatch, django_capture_on_commit_callbacks):
     received: list[tuple] = []
     posted: list[dict] = []
-    events.register(lambda et, payload, tid: received.append((et, tid)))
+
+    def recorder(et, payload, tid):
+        received.append((et, tid))
+
+    events.register(recorder)
     monkeypatch.setattr(events, "_post",
                         lambda url, body, sig: posted.append(
                             {"url": url, "body": body, "sig": sig}))
@@ -138,7 +142,8 @@ def test_events_fire_post_commit_and_sign_webhooks(
     assert posted[0]["sig"] == expected
     sub = WebhookSubscription.objects.get()
     assert sub.last_delivery_at is not None and sub.last_error == ""
-    events._consumers.clear()
+    # Remove ONLY our recorder — never clear the automation engine's consumer.
+    events._consumers.remove(recorder)
 
 
 def test_webhook_failure_recorded_not_raised(

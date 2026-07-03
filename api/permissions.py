@@ -16,4 +16,9 @@ class RoleWritePermission(BasePermission):
             return False
         if request.method in SAFE_METHODS:
             return True
+        if request.user.is_authenticated and request.user.tenant_id \
+                and not request.user.tenant.is_writable:
+            self.message = ("Trial expired — workspace is read-only. "
+                            "Upgrade to continue; your data is safe and exportable.")
+            return False
         return request.user.is_authenticated and request.user.role != User.Role.READONLY

@@ -726,6 +726,12 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         from accounts.models import User
 
+        tenant = request.user.tenant
+        active = User.objects.filter(tenant=tenant, is_active=True).count()
+        if active >= tenant.seats_limit:
+            return Response({"detail": f"Seat limit reached ({tenant.seats_limit}). "
+                                       "Upgrade your plan to add users."}, status=402)
+
         user = User.objects.create_user(
             username=serializer.validated_data["username"],
             email=serializer.validated_data.get("email", ""),

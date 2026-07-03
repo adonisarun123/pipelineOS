@@ -147,7 +147,41 @@ export default function Settings() {
         A morning email with overdue activities, today's schedule, and new leads.
         Sent automatically at 08:00 if there's anything to report.
       </p>
+      {getAuth()?.role === "admin" && <Billing />}
       {getAuth()?.role === "admin" && <ApiKeys />}
     </div>
+  );
+}
+
+interface Usage {
+  plan: string; seats_used: number; seats_limit: number;
+  trial_ends_at: string | null; writable: boolean; deals: number; leads: number;
+  storage_bytes: number; price_inr_month: number; razorpay_configured: boolean;
+}
+
+function Billing() {
+  const [u, setU] = useState<Usage | null>(null);
+  useEffect(() => { void api<Usage>("/billing/usage/").then(setU); }, []);
+  if (!u) return null;
+  return (
+    <>
+      <h3 style={{ fontSize: 15, marginTop: 24 }}>Plan & usage</h3>
+      <p>
+        <span className="pill new">{u.plan}</span>{" "}
+        {u.trial_ends_at && `trial ends ${new Date(u.trial_ends_at)
+          .toLocaleDateString("en-IN")}`}
+        {!u.writable && <strong style={{ color: "var(--rot)" }}> — read-only (expired)</strong>}
+      </p>
+      <p style={{ fontSize: 13, color: "var(--muted)" }}>
+        Seats {u.seats_used}/{u.seats_limit} · {u.deals} deals · {u.leads} leads ·{" "}
+        {(u.storage_bytes / 1048576).toFixed(1)} MB files
+      </p>
+      {!u.razorpay_configured && (
+        <p className="dupewarn" style={{ fontSize: 12 }}>
+          Payments not configured — set RAZORPAY_KEY_ID / RAZORPAY_WEBHOOK_SECRET on the
+          server to enable upgrades.
+        </p>
+      )}
+    </>
   );
 }

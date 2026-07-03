@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 
 from . import views
 from .capture import LeadCaptureView
+from .signup import BillingUsageView, RazorpayWebhookView, SignupView
 
 router = DefaultRouter()
 router.register("pipelines", views.PipelineViewSet, basename="pipeline")
@@ -33,6 +34,9 @@ urlpatterns = [
     path("import/people/", views.ImportView.as_view(), name="import-people"),
     path("email-account/", views.EmailAccountView.as_view(), name="email-account"),
     path("capture/<str:token>/", LeadCaptureView.as_view(), name="lead-capture"),
+    path("signup/", SignupView.as_view(), name="signup"),
+    path("billing/usage/", BillingUsageView.as_view(), name="billing-usage"),
+    path("billing/webhook/", RazorpayWebhookView.as_view(), name="billing-webhook"),
     path("reports/<str:section>/", views.ReportsView.as_view(), name="reports"),
     path("schema/", __import__("drf_spectacular.views", fromlist=["SpectacularAPIView"])
          .SpectacularAPIView.as_view(), name="schema"),
