@@ -277,3 +277,52 @@ class DealLineItem(TenantModel):
         gross = self.quantity * self.unit_price
         return (gross * (Decimal("100") - self.discount_pct) / Decimal("100")).quantize(
             Decimal("0.01"))
+
+
+class Notification(TenantModel):
+    """N-1/N-2: in-app notification center."""
+
+    class Kind(models.TextChoices):
+        ASSIGNED = "assigned"
+        OVERDUE = "overdue"
+        ROTTING = "rotting"
+        TRANSFER = "transfer"
+        SYSTEM = "system"
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+                             related_name="notifications")
+    kind = models.CharField(max_length=10, choices=Kind.choices)
+    title = models.CharField(max_length=255)
+    body = models.CharField(max_length=500, blank=True)
+    link_entity = models.CharField(max_length=20, blank=True)  # deal/lead/activity
+    link_id = models.BigIntegerField(null=True, blank=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta(TenantModel.Meta):
+        indexes = [models.Index(fields=["tenant", "user", "read_at", "created_at"])]
+
+
+class EmailAccount(TenantModel):
+    """E-1 groundwork: a user's connected mailbox. Live Gmail sync activates once
+    tenant-level OAuth credentials exist (see docs/GMAIL-SETUP.md)."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending"      # created, OAuth not completed
+        CONNECTED = "connected"
+        ERROR = "error"
+        DISABLED = "disabled"
+
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+                                related_name="email_account")
+    provider = models.CharField(max_length=20, default="gmail")
+    address = models.EmailField()
+    status = models.CharField(max_length=10, choices=Status.choices,
+                              default=Status.PENDING)
+    # E-3: privacy default — only sync mail linked to CRM contacts
+    sync_scope = models.CharField(max_length=12, default="linked_only",
+                                  choices=[("linked_only", "linked_only"), ("all", "all")])
+    # OAuth tokens stored encrypted at rest in production (per-tenant key, spec §8);
+    # never returned by the API.
+    oauth_credentials = models.JSONField(default=dict, blank=True)
+    last_sync_at = models.DateTimeField(null=True, blank=True)
+    error = models.CharField(max_length=255, blank=True)

@@ -228,3 +228,44 @@ class DealLineItemSerializer(serializers.ModelSerializer):
 
     def get_subtotal(self, obj) -> str:
         return str(obj.subtotal)
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        from crm.models import Notification
+
+        model = Notification
+        fields = ["id", "kind", "title", "body", "link_entity", "link_id",
+                  "read_at", "created_at"]
+
+
+class EmailAccountSerializer(serializers.ModelSerializer):
+    class Meta:
+        from crm.models import EmailAccount
+
+        model = EmailAccount
+        fields = ["id", "provider", "address", "status", "sync_scope",
+                  "last_sync_at", "error"]  # oauth_credentials NEVER exposed
+        read_only_fields = ["status", "last_sync_at", "error"]
+
+
+class UserCreateSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True)
+
+    class Meta:
+        from accounts.models import User
+
+        model = User
+        fields = ["id", "username", "email", "password", "role", "team"]
+
+    def validate_password(self, value):
+        from django.contrib.auth.password_validation import validate_password
+
+        validate_password(value)
+        return value
+
+
+class StageWriteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Stage
+        fields = ["id", "pipeline", "name", "order", "rot_days", "probability"]

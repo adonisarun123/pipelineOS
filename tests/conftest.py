@@ -27,6 +27,7 @@ def _seed_tenant(subdomain: str) -> dict:
                             ("rep1", "member"), ("rep2", "member"), ("ro", "readonly")]:
             users[uname] = User.objects.create_user(
                 username=f"{subdomain}_{uname}", password="x-test-pass-123",
+                email=f"{subdomain}_{uname}@example.in",
                 tenant=tenant, role=role, team=team,
             )
         pipeline = Pipeline(name="Main")

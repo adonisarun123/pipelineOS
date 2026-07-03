@@ -447,3 +447,27 @@ def pipeline_summary(pipeline, user: User) -> dict:
         "lost_this_month": {"count": lost.count(),
                             "value": str(sum((d.value for d in lost), Decimal("0")))},
     }
+
+
+# ---------------- Notifications (N-1/N-2) ----------------
+
+def notify(*, user: User, kind: str, title: str, body: str = "",
+           link_entity: str = "", link_id=None, tenant_id=None) -> None:
+    from .models import Notification
+
+    n = Notification(user=user, kind=kind, title=title, body=body,
+                     link_entity=link_entity, link_id=link_id)
+    if tenant_id is not None:
+        n.tenant_id = tenant_id
+    n.save()
+
+
+def notify_assignment(record, *, entity: str, owner: User | None, actor: User) -> None:
+    """N-2: record assigned to you — skip self-assignment."""
+    if owner is None or owner.pk == actor.pk:
+        return
+    title_attr = getattr(record, "title", None) or getattr(record, "name", None) or entity
+    notify(user=owner, kind="assigned",
+           title=f"{entity.title()} assigned to you: {title_attr}",
+           body=f"by {actor.username}", link_entity=entity, link_id=record.pk,
+           tenant_id=record.tenant_id)

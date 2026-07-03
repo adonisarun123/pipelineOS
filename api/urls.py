@@ -17,10 +17,13 @@ router.register("audit", views.AuditLogViewSet, basename="audit")
 router.register("saved-views", views.SavedViewViewSet, basename="savedview")
 router.register("users", views.UserViewSet, basename="user")
 router.register("products", views.ProductViewSet, basename="product")
+router.register("stages", views.StageViewSet, basename="stage")
+router.register("notifications", views.NotificationViewSet, basename="notification")
 router.register("lost-reasons", views.LostReasonViewSet, basename="lostreason")
 
 urlpatterns = [
     path("auth/login/", views.LoginView.as_view(), name="login"),
     path("search/", views.SearchView.as_view(), name="search"),
     path("import/people/", views.ImportView.as_view(), name="import-people"),
+    path("email-account/", views.EmailAccountView.as_view(), name="email-account"),
 ] + router.urls

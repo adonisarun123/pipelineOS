@@ -18,6 +18,27 @@ from .serializers import (
 )
 
 
+class SoftDeleteMixin:
+    """U-1: delete = soft, admin/manager only. Hard delete does not exist in the API."""
+
+    def destroy(self, request, *args, **kwargs):
+        if request.user.role not in ("admin", "manager"):
+            return Response({"detail": "Delete requires admin or manager role."}, status=403)
+        obj = self.get_object()
+        obj.is_deleted = True
+        obj.save(update_fields=["is_deleted", "updated_at"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class AdminWriteMixin:
+    """Config objects (P4 persona): everyone reads, only admins write."""
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if request.method not in ("GET", "HEAD", "OPTIONS") and request.user.role != "admin":
+            self.permission_denied(request, message="Only admins can configure this.")
+
+
 class LoginView(ObtainAuthToken):
     def post(self, request, *args, **kwargs):
         response = super().post(request, *args, **kwargs)
@@ -34,11 +55,14 @@ class LoginView(ObtainAuthToken):
         return response
 
 
-class PipelineViewSet(viewsets.ReadOnlyModelViewSet):
+class PipelineViewSet(AdminWriteMixin, viewsets.ModelViewSet):
     serializer_class = PipelineSerializer
 
     def get_queryset(self):
         return Pipeline.objects.prefetch_related("stages")
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
 
     @action(detail=True, methods=["get"])
     def kanban(self, request, pk=None):
@@ -75,7 +99,7 @@ class PipelineViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(services.pipeline_summary(self.get_object(), request.user))
 
 
-class DealViewSet(viewsets.ModelViewSet):
+class DealViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
     serializer_class = DealSerializer
 
     def get_queryset(self):
@@ -129,6 +153,8 @@ class DealViewSet(viewsets.ModelViewSet):
             owner=serializer.validated_data.get("owner"),
             expected_close_date=serializer.validated_data.get("expected_close_date"),
         )
+        services.notify_assignment(serializer.instance, entity="deal",
+                                   owner=serializer.instance.owner, actor=self.request.user)
 
     @action(detail=True, methods=["get", "post"])
     def line_items(self, request, pk=None):
@@ -170,8 +196,12 @@ class DealViewSet(viewsets.ModelViewSet):
         return Response({"deal_value": str(deal.value)})
 
     def perform_update(self, serializer):
+        old_owner_id = serializer.instance.owner_id
         deal = serializer.save()
         services.recompute_deal_value(deal)
+        if deal.owner_id != old_owner_id:
+            services.notify_assignment(deal, entity="deal", owner=deal.owner,
+                                       actor=self.request.user)
 
     @action(detail=True, methods=["post"])
     def set_custom(self, request, pk=None):
@@ -181,6 +211,36 @@ class DealViewSet(viewsets.ModelViewSet):
         deal = self.get_object()
         cache = custom_fields.set_custom_values(deal, "deal", dict(request.data), request.user)
         return Response({"custom": cache})
+
+    @action(detail=False, methods=["post"])
+    def bulk(self, request):
+        """C-6: bulk edit owner/stage — admin/manager only, permission-gated."""
+        if request.user.role not in ("admin", "manager"):
+            return Response({"detail": "Bulk edit requires admin or manager role."}, status=403)
+        ids = request.data.get("ids") or []
+        changes = request.data.get("set") or {}
+        deals = list(self.get_queryset().filter(pk__in=ids))
+        updated = 0
+        new_owner = None
+        if changes.get("owner"):
+            from accounts.models import User as _User
+
+            new_owner = get_object_or_404(
+                _User.objects.filter(tenant_id=request.user.tenant_id),
+                pk=changes["owner"])
+        stage = None
+        if changes.get("stage_id"):
+            stage = get_object_or_404(Stage, pk=changes["stage_id"])
+        for deal in deals:
+            if new_owner is not None and deal.owner_id != new_owner.id:
+                deal.owner = new_owner
+                deal.save(update_fields=["owner", "updated_at"])
+                services.notify_assignment(deal, entity="deal", owner=new_owner,
+                                           actor=request.user)
+            if stage is not None and deal.status == "open":
+                services.change_stage(deal, stage, request.user)
+            updated += 1
+        return Response({"updated": updated})
 
     @action(detail=False, methods=["get"])
     def export(self, request):
@@ -264,7 +324,7 @@ class DealViewSet(viewsets.ModelViewSet):
         return Response(DealSerializer(deal).data)
 
 
-class ActivityViewSet(viewsets.ModelViewSet):
+class ActivityViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
     serializer_class = ActivitySerializer
 
     def get_queryset(self):
@@ -299,7 +359,7 @@ class ActivityViewSet(viewsets.ModelViewSet):
         }, status=status.HTTP_200_OK)
 
 
-class OrganizationViewSet(viewsets.ModelViewSet):
+class OrganizationViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
     serializer_class = OrganizationSerializer
 
     def get_queryset(self):
@@ -311,7 +371,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         serializer.save(created_by=self.request.user)
 
 
-class PersonViewSet(viewsets.ModelViewSet):
+class PersonViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
     def get_serializer_class(self):
         from .serializers import PersonDetailSerializer
 
@@ -355,7 +415,7 @@ class PersonViewSet(viewsets.ModelViewSet):
         return Response({"person": PersonDetailSerializer(person).data, "events": events})
 
 
-class LostReasonViewSet(viewsets.ReadOnlyModelViewSet):
+class LostReasonViewSet(AdminWriteMixin, viewsets.ModelViewSet):
     serializer_class = LostReasonSerializer
     pagination_class = None
 
@@ -363,7 +423,7 @@ class LostReasonViewSet(viewsets.ReadOnlyModelViewSet):
         return LostReason.objects.all()
 
 
-class LeadViewSet(viewsets.ModelViewSet):
+class LeadViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
     """L-1 queue + L-3/L-4/L-5 actions."""
 
     def get_serializer_class(self):
@@ -382,8 +442,17 @@ class LeadViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user,
-                        owner=serializer.validated_data.get("owner") or self.request.user)
+        lead = serializer.save(created_by=self.request.user,
+                               owner=serializer.validated_data.get("owner") or self.request.user)
+        services.notify_assignment(lead, entity="lead", owner=lead.owner,
+                                   actor=self.request.user)
+
+    def perform_update(self, serializer):
+        old_owner_id = serializer.instance.owner_id
+        lead = serializer.save()
+        if lead.owner_id != old_owner_id:
+            services.notify_assignment(lead, entity="lead", owner=lead.owner,
+                                       actor=self.request.user)
 
     @action(detail=False, methods=["get"])
     def duplicates(self, request):
@@ -434,7 +503,7 @@ class LeadViewSet(viewsets.ModelViewSet):
         return Response(self.get_serializer(lead).data)
 
 
-class LeadSourceViewSet(viewsets.ReadOnlyModelViewSet):
+class LeadSourceViewSet(AdminWriteMixin, viewsets.ModelViewSet):
     pagination_class = None
 
     def get_serializer_class(self):
@@ -455,7 +524,7 @@ class LeadSourceViewSet(viewsets.ReadOnlyModelViewSet):
         return LeadSource.objects.all()
 
 
-class ActivityTypeViewSet(viewsets.ReadOnlyModelViewSet):
+class ActivityTypeViewSet(AdminWriteMixin, viewsets.ModelViewSet):
     pagination_class = None
 
     def get_serializer_class(self):
@@ -605,10 +674,35 @@ class SavedViewViewSet(viewsets.ModelViewSet):
         instance.save(update_fields=["is_deleted", "updated_at"])
 
 
-class UserViewSet(viewsets.ReadOnlyModelViewSet):
-    """Tenant user directory + U-3 admin actions."""
+class UserViewSet(viewsets.ModelViewSet):
+    """Tenant user directory + U-1 admin management + U-3 admin actions."""
 
     pagination_class = None
+    http_method_names = ["get", "post", "patch", "head", "options"]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if request.method not in ("GET", "HEAD", "OPTIONS") \
+                and not request.user.is_admin_role:
+            self.permission_denied(request, message="Only admins manage users.")
+
+    def create(self, request, *args, **kwargs):
+        """U-1: admin creates users with role + team."""
+        from .serializers import UserCreateSerializer, UserSerializer
+
+        serializer = UserCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        from accounts.models import User
+
+        user = User.objects.create_user(
+            username=serializer.validated_data["username"],
+            email=serializer.validated_data.get("email", ""),
+            password=serializer.validated_data["password"],
+            tenant=request.user.tenant,
+            role=serializer.validated_data.get("role", "member"),
+            team=serializer.validated_data.get("team"),
+        )
+        return Response(UserSerializer(user).data, status=201)
 
     def get_serializer_class(self):
         from .serializers import UserSerializer
@@ -638,6 +732,10 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         audit.log(actor=request.user, action="transfer", model_name="user",
                   object_id=source.id,
                   detail={"to_user": target.username, "counts": counts}, request=request)
+        services.notify(user=target, kind="transfer",
+                        title=f"Records transferred to you from {source.username}",
+                        body=", ".join(f"{v} {k}s" for k, v in counts.items() if v),
+                        tenant_id=request.user.tenant_id)
         return Response({"transferred": counts, "to_user": target.username})
 
     @action(detail=True, methods=["post"])
@@ -655,7 +753,7 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         return Response({"deactivated": user.username})
 
 
-class ProductViewSet(viewsets.ModelViewSet):
+class ProductViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
     """PR-1."""
 
     def get_serializer_class(self):
@@ -673,3 +771,105 @@ class ProductViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
+
+
+class StageViewSet(AdminWriteMixin, viewsets.ModelViewSet):
+    """D-1: admin-configurable stages (P4 persona)."""
+
+    pagination_class = None
+
+    def get_serializer_class(self):
+        from .serializers import StageWriteSerializer
+
+        return StageWriteSerializer
+
+    def get_queryset(self):
+        qs = Stage.objects.select_related("pipeline")
+        pid = self.request.query_params.get("pipeline")
+        return qs.filter(pipeline_id=pid) if pid else qs
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+
+class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
+    """N-1: own notifications only, unread first."""
+
+    def get_serializer_class(self):
+        from .serializers import NotificationSerializer
+
+        return NotificationSerializer
+
+    def get_queryset(self):
+        from crm.models import Notification
+
+        qs = Notification.objects.filter(user=self.request.user)
+        if self.request.query_params.get("unread") == "1":
+            qs = qs.filter(read_at__isnull=True)
+        return qs.order_by("-id")
+
+    @action(detail=False, methods=["get"])
+    def unread_count(self, request):
+        return Response({"count": self.get_queryset().filter(read_at__isnull=True).count()})
+
+    @action(detail=True, methods=["post"])
+    def read(self, request, pk=None):
+        from django.utils import timezone as tz
+
+        n = self.get_object()
+        if n.read_at is None:
+            n.read_at = tz.now()
+            n.save(update_fields=["read_at", "updated_at"])
+        return Response({"ok": True})
+
+    @action(detail=False, methods=["post"])
+    def read_all(self, request):
+        from django.utils import timezone as tz
+
+        updated = self.get_queryset().filter(read_at__isnull=True).update(read_at=tz.now())
+        return Response({"marked": updated})
+
+
+class EmailAccountView(APIView):
+    """E-1 groundwork: connect/disconnect a mailbox. Live Gmail OAuth requires
+    tenant credentials — see docs/GMAIL-SETUP.md."""
+
+    def get(self, request):
+        from crm.models import EmailAccount
+
+        from .serializers import EmailAccountSerializer
+
+        acct = EmailAccount.objects.filter(user=request.user).first()
+        return Response(EmailAccountSerializer(acct).data if acct
+                        else {"status": "not_connected"})
+
+    def post(self, request):
+        import os
+
+        from crm.models import EmailAccount
+
+        from .serializers import EmailAccountSerializer
+
+        address = (request.data.get("address") or request.user.email or "").strip()
+        if not address or "@" not in address:
+            return Response({"detail": "A valid email address is required."}, status=400)
+        acct, _created = EmailAccount.objects.update_or_create(
+            user=request.user,
+            defaults={"address": address, "provider": "gmail",
+                      "status": EmailAccount.Status.PENDING,
+                      "created_by": request.user},
+        )
+        oauth_ready = bool(os.environ.get("GOOGLE_OAUTH_CLIENT_ID"))
+        return Response({
+            **EmailAccountSerializer(acct).data,
+            "next_step": ("Redirect user to Google consent screen" if oauth_ready
+                          else "Server missing GOOGLE_OAUTH_CLIENT_ID/SECRET — "
+                               "see docs/GMAIL-SETUP.md"),
+        }, status=201)
+
+    def delete(self, request):
+        from crm.models import EmailAccount
+
+        EmailAccount.objects.filter(user=request.user).update(
+            status=EmailAccount.Status.DISABLED, oauth_credentials={})
+        return Response(status=204)

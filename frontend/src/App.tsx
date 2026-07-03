@@ -7,11 +7,13 @@ import ImportWizard from "./ImportWizard";
 import Kanban from "./Kanban";
 import Leads from "./Leads";
 import Login from "./Login";
+import NotificationBell from "./NotificationBell";
 import SearchBox from "./SearchBox";
+import Settings from "./Settings";
 import Team from "./Team";
 import type { Auth } from "./types";
 
-type View = "activities" | "pipeline" | "leads" | "contacts" | "import" | "team";
+type View = "activities" | "pipeline" | "leads" | "contacts" | "import" | "team" | "settings";
 
 export default function App() {
   const [auth, setAuthState] = useState<Auth | null>(getAuth());
@@ -51,7 +53,10 @@ export default function App() {
           )}
         </nav>
         <SearchBox onOpenDeal={setSearchDeal} />
-        <span style={{ marginLeft: "auto", color: "var(--muted)" }}>
+        <span style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center",
+          color: "var(--muted)" }}>
+          <NotificationBell />
+          <a style={{ cursor: "pointer" }} onClick={() => setView("settings")}>⚙</a>
           {auth.username} ({auth.role}){" "}
           <button className="ghost" onClick={() => { setAuth(null); setAuthState(null); }}>
             Sign out
@@ -64,6 +69,7 @@ export default function App() {
       {view === "contacts" && <Contacts />}
       {view === "import" && <ImportWizard />}
       {view === "team" && <Team selfId={auth.user_id} />}
+      {view === "settings" && <Settings />}
       {searchDeal !== null && (
         <DealDetail dealId={searchDeal} onClose={() => setSearchDeal(null)}
           onChanged={() => undefined} />
