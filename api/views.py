@@ -367,6 +367,15 @@ class OrganizationViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
         q = self.request.query_params.get("q")
         return qs.filter(name__icontains=q) if q else qs
 
+    @action(detail=True, methods=["post"])
+    def merge(self, request, pk=None):
+        """C-5 for organizations."""
+        if request.user.role not in ("admin", "manager"):
+            return Response({"detail": "Merge requires admin or manager role."}, status=403)
+        primary = self.get_object()
+        duplicate = get_object_or_404(Organization, pk=request.data.get("duplicate_id"))
+        return Response(services.merge_organizations(primary, duplicate, request.user))
+
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
 
@@ -402,6 +411,16 @@ class PersonViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
                         created_by=self.request.user).save()
         if email:
             PersonEmail(person=person, email=email, created_by=self.request.user).save()
+
+    @action(detail=True, methods=["post"])
+    def merge(self, request, pk=None):
+        """C-5: merge duplicate into this person. Admin/manager only."""
+        if request.user.role not in ("admin", "manager"):
+            return Response({"detail": "Merge requires admin or manager role."}, status=403)
+        primary = self.get_object()
+        duplicate = get_object_or_404(Person, pk=request.data.get("duplicate_id"))
+        result = services.merge_people(primary, duplicate, request.user)
+        return Response(result)
 
     @action(detail=True, methods=["get"])
     def timeline(self, request, pk=None):
@@ -873,3 +892,76 @@ class EmailAccountView(APIView):
         EmailAccount.objects.filter(user=request.user).update(
             status=EmailAccount.Status.DISABLED, oauth_credentials={})
         return Response(status=204)
+
+
+class FileAttachmentViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
+    """Attachments; downloads are authenticated + tenant-scoped (never public media)."""
+
+    http_method_names = ["get", "post", "delete", "head", "options"]
+
+    def get_serializer_class(self):
+        from .serializers import FileAttachmentSerializer
+
+        return FileAttachmentSerializer
+
+    def get_queryset(self):
+        from crm.models import FileAttachment
+
+        qs = FileAttachment.objects.select_related("uploaded_by")
+        p = self.request.query_params
+        for key in ("deal", "person", "lead"):
+            if p.get(key):
+                qs = qs.filter(**{f"{key}_id": p[key]})
+        return qs
+
+    def create(self, request, *args, **kwargs):
+        from django.conf import settings as dj
+
+        from crm.models import FileAttachment
+
+        from .serializers import FileAttachmentSerializer
+
+        upload = request.FILES.get("file")
+        if upload is None:
+            return Response({"detail": "file is required"}, status=400)
+        if upload.size > dj.MAX_ATTACHMENT_MB * 1024 * 1024:
+            return Response(
+                {"detail": f"File exceeds {dj.MAX_ATTACHMENT_MB}MB limit."}, status=400)
+        att = FileAttachment(
+            file=upload, name=upload.name, size=upload.size,
+            content_type=getattr(upload, "content_type", "") or "",
+            uploaded_by=request.user, created_by=request.user,
+            deal_id=request.data.get("deal") or None,
+            person_id=request.data.get("person") or None,
+            lead_id=request.data.get("lead") or None,
+        )
+        att.save()
+        return Response(FileAttachmentSerializer(att).data, status=201)
+
+    @action(detail=True, methods=["get"])
+    def download(self, request, pk=None):
+        from django.http import FileResponse
+
+        att = self.get_object()  # tenant-scoped queryset -> cross-tenant = 404
+        return FileResponse(att.file.open("rb"), as_attachment=True, filename=att.name)
+
+
+class WebhookSubscriptionViewSet(AdminWriteMixin, viewsets.ModelViewSet):
+    """§7 integration hooks (admin-configured; reads also admin-only)."""
+
+    pagination_class = None
+
+    def get_serializer_class(self):
+        from .serializers import WebhookSubscriptionSerializer
+
+        return WebhookSubscriptionSerializer
+
+    def get_queryset(self):
+        from crm.models import WebhookSubscription
+
+        if not self.request.user.is_admin_role:
+            return WebhookSubscription.objects.none()
+        return WebhookSubscription.objects.all()
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)

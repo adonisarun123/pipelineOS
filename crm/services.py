@@ -81,6 +81,11 @@ def create_deal(*, user: User, title: str, pipeline, stage: Stage | None = None,
     )
     deal.save()
     StageHistory(deal=deal, from_stage=None, to_stage=stage, changed_by=user).save()
+    from . import events
+
+    events.emit("deal.created", {"id": deal.pk, "title": deal.title,
+                                 "value": str(deal.value), "stage": stage.name,
+                                 "owner": deal.owner.username}, deal.tenant_id)
     return deal
 
 
@@ -97,6 +102,10 @@ def change_stage(deal: Deal, stage: Stage, user: User) -> Deal:
     deal.stage = stage
     deal.stage_entered_at = timezone.now()
     deal.save(update_fields=["stage", "stage_entered_at", "updated_at"])
+    from . import events
+
+    events.emit("deal.stage_changed", {"id": deal.pk, "title": deal.title,
+                                       "stage": stage.name}, deal.tenant_id)
     return deal
 
 
@@ -107,6 +116,10 @@ def mark_won(deal: Deal, user: User) -> Deal:
     deal.status = Deal.Status.WON
     deal.closed_at = timezone.now()
     deal.save(update_fields=["status", "closed_at", "updated_at"])
+    from . import events
+
+    events.emit("deal.won", {"id": deal.pk, "title": deal.title,
+                             "value": str(deal.value)}, deal.tenant_id)
     return deal
 
 
@@ -471,3 +484,86 @@ def notify_assignment(record, *, entity: str, owner: User | None, actor: User) -
            title=f"{entity.title()} assigned to you: {title_attr}",
            body=f"by {actor.username}", link_entity=entity, link_id=record.pk,
            tenant_id=record.tenant_id)
+
+
+# ---------------- Merge duplicates (C-5) ----------------
+
+def _fill_blanks(primary, duplicate, fields: list[str]) -> list[str]:
+    filled = []
+    for f in fields:
+        if not getattr(primary, f) and getattr(duplicate, f):
+            setattr(primary, f, getattr(duplicate, f))
+            filled.append(f)
+    return filled
+
+
+@transaction.atomic
+def merge_people(primary, duplicate, user: User) -> dict:
+    """C-5: field-level fill from duplicate, children reassigned, merge audited
+    (audit detail carries everything needed to reverse within retention)."""
+    from . import audit
+    from .models import DealPerson, Person
+
+    if primary.pk == duplicate.pk:
+        raise ValidationError("Cannot merge a person into themselves.")
+    if not isinstance(duplicate, Person):  # pragma: no cover - defensive
+        raise ValidationError("Invalid duplicate.")
+    filled = _fill_blanks(primary, duplicate,
+                          ["last_name", "job_title", "organization_id", "owner_id"])
+    primary.save()
+    moved = {
+        "phones": 0, "emails": 0, "activities": 0, "notes": 0, "deal_links": 0,
+    }
+    existing_phones = set(primary.phones.values_list("normalized", flat=True))
+    for ph in duplicate.phones.all():
+        if ph.normalized in existing_phones:
+            continue
+        ph.person = primary
+        ph.save(update_fields=["person", "updated_at"])
+        moved["phones"] += 1
+    existing_emails = {e.lower() for e in primary.emails.values_list("email", flat=True)}
+    for em in duplicate.emails.all():
+        if em.email.lower() in existing_emails:
+            continue
+        em.person = primary
+        em.save(update_fields=["person", "updated_at"])
+        moved["emails"] += 1
+    moved["activities"] = duplicate.activities.update(person=primary)
+    moved["notes"] = duplicate.notes.update(person=primary)
+    already_linked = set(DealPerson.objects.filter(person=primary)
+                         .values_list("deal_id", flat=True))
+    for link in DealPerson.objects.filter(person=duplicate):
+        if link.deal_id in already_linked:
+            link.is_deleted = True
+            link.save(update_fields=["is_deleted", "updated_at"])
+        else:
+            link.person = primary
+            link.save(update_fields=["person", "updated_at"])
+            moved["deal_links"] += 1
+    duplicate.is_deleted = True
+    duplicate.save(update_fields=["is_deleted", "updated_at"])
+    audit.log(actor=user, action="update", model_name="person", object_id=primary.pk,
+              detail={"merged_from": duplicate.pk, "filled": filled, "moved": moved},
+              tenant_id=primary.tenant_id)
+    return {"filled": filled, "moved": moved}
+
+
+@transaction.atomic
+def merge_organizations(primary, duplicate, user: User) -> dict:
+    from . import audit
+
+    if primary.pk == duplicate.pk:
+        raise ValidationError("Cannot merge an organization into itself.")
+    filled = _fill_blanks(primary, duplicate, ["industry", "website", "gstin", "owner_id"])
+    primary.save()
+    moved = {
+        "people": duplicate.people.update(organization=primary),
+        "deals": duplicate.deals.update(organization=primary),
+    }
+    duplicate.is_deleted = True
+    duplicate.save(update_fields=["is_deleted", "updated_at"])
+    audit.log(actor=user, action="update", model_name="organization",
+              object_id=primary.pk,
+              detail={"merged_from": duplicate.pk, "filled": filled, "moved": moved},
+              tenant_id=primary.tenant_id)
+    return {"filled": filled, "moved": moved}

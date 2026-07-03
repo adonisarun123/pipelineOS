@@ -101,6 +101,11 @@ else:
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "pipelineos@localhost")
 
+# File attachments: local disk in Phase 1; S3-compatible later. Served ONLY via
+# the authenticated download endpoint — MEDIA_URL is deliberately not routed.
+MEDIA_ROOT = os.environ.get("DJANGO_MEDIA_ROOT", str(BASE_DIR / "media"))
+MAX_ATTACHMENT_MB = 10
+
 # Security (effective when DEBUG=0 behind TLS)
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SESSION_COOKIE_SECURE = not DEBUG

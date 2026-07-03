@@ -19,6 +19,8 @@ router.register("users", views.UserViewSet, basename="user")
 router.register("products", views.ProductViewSet, basename="product")
 router.register("stages", views.StageViewSet, basename="stage")
 router.register("notifications", views.NotificationViewSet, basename="notification")
+router.register("files", views.FileAttachmentViewSet, basename="file")
+router.register("webhooks", views.WebhookSubscriptionViewSet, basename="webhook")
 router.register("lost-reasons", views.LostReasonViewSet, basename="lostreason")
 
 urlpatterns = [

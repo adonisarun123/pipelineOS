@@ -269,3 +269,25 @@ class StageWriteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Stage
         fields = ["id", "pipeline", "name", "order", "rot_days", "probability"]
+
+
+class FileAttachmentSerializer(serializers.ModelSerializer):
+    uploaded_by_name = serializers.CharField(source="uploaded_by.username",
+                                             read_only=True, default=None)
+
+    class Meta:
+        from crm.models import FileAttachment
+
+        model = FileAttachment
+        fields = ["id", "name", "size", "content_type", "uploaded_by_name",
+                  "deal", "person", "lead", "created_at"]
+
+
+class WebhookSubscriptionSerializer(serializers.ModelSerializer):
+    class Meta:
+        from crm.models import WebhookSubscription
+
+        model = WebhookSubscription
+        fields = ["id", "url", "events", "secret", "is_active",
+                  "last_delivery_at", "last_error"]
+        extra_kwargs = {"secret": {"write_only": True}}  # never readable back

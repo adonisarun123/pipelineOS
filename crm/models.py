@@ -326,3 +326,36 @@ class EmailAccount(TenantModel):
     oauth_credentials = models.JSONField(default=dict, blank=True)
     last_sync_at = models.DateTimeField(null=True, blank=True)
     error = models.CharField(max_length=255, blank=True)
+
+
+def _attachment_path(instance, filename):
+    return f"tenant_{instance.tenant_id}/attachments/{filename}"
+
+
+class FileAttachment(TenantModel):
+    """Phase 1 files. Served only through the authenticated download endpoint —
+    never via a public MEDIA URL (tenant isolation)."""
+
+    file = models.FileField(upload_to=_attachment_path)
+    name = models.CharField(max_length=255)
+    size = models.PositiveIntegerField(default=0)
+    content_type = models.CharField(max_length=100, blank=True)
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True,
+                                    on_delete=models.SET_NULL, related_name="+")
+    deal = models.ForeignKey(Deal, null=True, blank=True, on_delete=models.CASCADE,
+                             related_name="files")
+    person = models.ForeignKey(Person, null=True, blank=True, on_delete=models.CASCADE,
+                               related_name="files")
+    lead = models.ForeignKey("crm.Lead", null=True, blank=True, on_delete=models.CASCADE,
+                             related_name="files")
+
+
+class WebhookSubscription(TenantModel):
+    """§7 integration hooks: app.trebound.com / CHAP subscribe to events from Phase 1."""
+
+    url = models.URLField()
+    events = models.JSONField(default=list)  # e.g. ["deal.won", "deal.stage_changed"]; [] = all
+    secret = models.CharField(max_length=64)  # HMAC-SHA256 signing key
+    is_active = models.BooleanField(default=True)
+    last_delivery_at = models.DateTimeField(null=True, blank=True)
+    last_error = models.CharField(max_length=255, blank=True)

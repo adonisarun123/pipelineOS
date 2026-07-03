@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, inr } from "./api";
+import Attachments from "./Attachments";
 import CustomFields from "./CustomFields";
 import LineItems from "./LineItems";
 import ScheduleDialog from "./ScheduleDialog";
@@ -88,6 +89,7 @@ export default function DealDetail({ dealId, onClose, onChanged }: {
           values={deal.custom ?? {}} onSaved={() => { void load(); onChanged(); }} />
         <LineItems dealId={deal.id} valueAuto={deal.value_auto}
           onChanged={() => { void load(); onChanged(); }} />
+        <Attachments dealId={deal.id} />
         <form onSubmit={addNote} style={{ display: "flex", gap: 8 }}>
           <input name="body" placeholder="Add a note…" style={{ flex: 1 }} />
           <button className="ghost">Add</button>
