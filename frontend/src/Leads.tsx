@@ -17,6 +17,8 @@ export default function Leads() {
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [dupes, setDupes] = useState<Dupes | null>(null);
   const [converting, setConverting] = useState<Lead | null>(null);
+  const [callLog, setCallLog] = useState<Lead | null>(null);  // M-3 assist
+  const pendingCall = useRef<Lead | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [views, setViews] = useState<{ id: number; name: string; params: { status?: string } }[]>([]);
 
@@ -46,6 +48,17 @@ export default function Leads() {
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
+    // M-3: returning from a tel:/wa.me jump → offer to log the call
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && pendingCall.current) {
+        setCallLog(pendingCall.current);
+        pendingCall.current = null;
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+  useEffect(() => {
     void api<LeadSource[]>("/lead-sources/").then(setSources);
     void api<LostReason[]>("/lost-reasons/").then(setReasons);
     void api<Paginated<Pipeline>>("/pipelines/").then((d) => setPipelines(d.results));
@@ -73,6 +86,22 @@ export default function Leads() {
     });
     e.currentTarget.reset();
     setDupes(null);
+    void load();
+  };
+
+  const logCall = async (lead: Lead, outcome: string) => {
+    const types = await api<{ id: number; name: string }[]>("/activity-types/");
+    const call = types.find((t) => t.name === "Call") ?? types[0];
+    const created = await api<{ id: number }>("/activities/", { method: "POST",
+      body: { type: call.id, subject: `Call: ${lead.name}`,
+        due_at: new Date().toISOString(), lead: lead.id } });
+    await api(`/activities/${created.id}/complete/`, { method: "POST",
+      body: { outcome } });
+    if (lead.status === "new") {
+      await api(`/leads/${lead.id}/set_status/`, { method: "POST",
+        body: { status: "attempted" } });
+    }
+    setCallLog(null);
     void load();
   };
 
@@ -160,7 +189,18 @@ export default function Leads() {
             <tr key={l.id}>
               <td>{l.name}</td>
               <td>{l.organization_name || "—"}</td>
-              <td>{l.phone_normalized || l.phone_raw || "—"}</td>
+              <td>
+                {l.phone_normalized ? (
+                  <>
+                    <a className="calllink" href={`tel:${l.phone_normalized}`}
+                      onClick={() => { pendingCall.current = l; }}>
+                      📞 {l.phone_normalized}
+                    </a>{" "}
+                    <a className="calllink" title="WhatsApp" target="_blank" rel="noreferrer"
+                      href={`https://wa.me/${l.phone_normalized.replace("+", "")}`}>💬</a>
+                  </>
+                ) : (l.phone_raw || "—")}
+              </td>
               <td>{l.source_name ?? "—"}</td>
               <td>{l.owner_name ?? "—"}</td>
               <td><span className={`pill ${l.status}`}>{l.status}</span></td>
@@ -189,6 +229,18 @@ export default function Leads() {
           ))}
         </tbody>
       </table>
+      {callLog && (
+        <div className="dupewarn" style={{ margin: "8px 20px", display: "flex",
+          gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          📞 Log this call with <strong>{callLog.name}</strong>?
+          {["connected", "no_answer", "busy", "wrong_number"].map((o) => (
+            <button key={o} className="ghost" onClick={() => void logCall(callLog, o)}>
+              {o.replace("_", " ")}
+            </button>
+          ))}
+          <a href="#" onClick={(e) => { e.preventDefault(); setCallLog(null); }}>skip</a>
+        </div>
+      )}
       <dialog ref={dialogRef} onClose={() => setConverting(null)}>
         <form onSubmit={convert}>
           <h3 style={{ margin: 0 }}>Convert “{converting?.name}” to deal</h3>

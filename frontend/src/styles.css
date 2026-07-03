@@ -43,3 +43,16 @@ tr.overdue td:first-child { border-left: 3px solid var(--rot); }
 dialog { border: none; border-radius: 8px; padding: 20px; box-shadow: 0 8px 24px rgba(9,30,66,.3); min-width: 320px; }
 dialog form { display: flex; flex-direction: column; gap: 10px; }
 .dupewarn { background: #fffae6; border: 1px solid var(--warn); border-radius: 4px; padding: 6px 10px; font-size: 12px; }
+.calllink { text-decoration: none; }
+
+/* M-2: mobile (Android PWA priority) */
+@media (max-width: 640px) {
+  header { flex-wrap: wrap; gap: 8px; padding: 8px 10px; }
+  nav a { margin-right: 8px; font-size: 13px; }
+  .board { padding: 10px; gap: 8px; }
+  .col { min-width: 240px; width: 240px; }
+  .quickadd, .toolbar { flex-wrap: wrap; padding: 8px 10px 0; }
+  table.leads { display: block; overflow-x: auto; width: calc(100% - 20px); margin: 12px 10px; }
+  button, select, input { min-height: 40px; } /* touch targets */
+  dialog { width: 92vw; }
+}

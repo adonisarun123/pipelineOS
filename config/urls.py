@@ -15,8 +15,22 @@ def spa(request):
     return HttpResponse(index.read_text(), content_type="text/html")
 
 
+def _dist_file(name: str, content_type: str):
+    def view(request):
+        f = _DIST / name
+        if not f.exists():
+            raise Http404
+        return HttpResponse(f.read_bytes(), content_type=content_type)
+
+    return view
+
+
 urlpatterns = [
     path("api/v1/", include("api.urls")),
     re_path(r"^assets/(?P<path>.*)$", serve, {"document_root": _DIST / "assets"}),
+    path("sw.js", _dist_file("sw.js", "application/javascript")),
+    path("manifest.webmanifest", _dist_file("manifest.webmanifest",
+                                            "application/manifest+json")),
+    path("icon.svg", _dist_file("icon.svg", "image/svg+xml")),
     path("", spa),
 ]
