@@ -465,6 +465,11 @@ class LeadViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
                                owner=serializer.validated_data.get("owner") or self.request.user)
         services.notify_assignment(lead, entity="lead", owner=lead.owner,
                                    actor=self.request.user)
+        from crm import events
+
+        events.emit("lead.created", {"id": lead.pk, "name": lead.name,
+                                     "source": lead.source.name if lead.source else None},
+                    lead.tenant_id)
 
     def perform_update(self, serializer):
         old_owner_id = serializer.instance.owner_id
@@ -965,3 +970,46 @@ class WebhookSubscriptionViewSet(AdminWriteMixin, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
+
+
+class AutomationRuleViewSet(AdminWriteMixin, viewsets.ModelViewSet):
+    """AU-1: rule CRUD (admins configure; managers/members can read)."""
+
+    pagination_class = None
+
+    def get_serializer_class(self):
+        from .serializers import AutomationRuleSerializer
+
+        return AutomationRuleSerializer
+
+    def get_queryset(self):
+        from crm.automation import AutomationRule
+
+        return AutomationRule.objects.select_related("pipeline")
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+    @action(detail=True, methods=["get"])
+    def runs(self, request, pk=None):
+        from .serializers import AutomationRunSerializer
+
+        rule = self.get_object()
+        runs = rule.runs.order_by("-id")[:25]
+        return Response(AutomationRunSerializer(runs, many=True).data)
+
+
+class AutomationRunViewSet(viewsets.ReadOnlyModelViewSet):
+    """AU-2: execution log (admin/manager)."""
+
+    def get_queryset(self):
+        from crm.automation import AutomationRun
+
+        if self.request.user.role not in ("admin", "manager"):
+            return AutomationRun.objects.none()
+        return AutomationRun.objects.select_related("rule").order_by("-id")
+
+    def get_serializer_class(self):
+        from .serializers import AutomationRunSerializer
+
+        return AutomationRunSerializer

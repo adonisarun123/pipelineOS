@@ -220,6 +220,7 @@ class Note(TenantModel):
 
 # Sibling modules; imports register models with the app registry.
 from .audit import AuditLog  # noqa: E402,F401
+from .automation import AutomationRule, AutomationRun  # noqa: E402,F401
 from .custom_fields import CustomFieldDef, CustomFieldValue  # noqa: E402,F401
 from .leads import Lead, LeadSource  # noqa: E402,F401
 

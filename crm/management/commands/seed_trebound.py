@@ -124,6 +124,29 @@ class Command(BaseCommand):
                                options=opts, is_important=imp, order=order,
                                nudge_stage_order=nudge).save()
 
+            # Automation recipes (AU-4) — recipes drive adoption more than a blank builder
+            from crm.automation import AutomationRule
+            recipes = [
+                ("Won → onboarding task for ops", "deal.won", {}, [
+                    {"type": "create_activity", "type_name": "Task",
+                     "subject": "Start onboarding + handoff to ops", "due_in_days": 1},
+                    {"type": "notify", "title": "Deal won — onboarding task created"}]),
+                ("Proposal Sent → follow-up call in 2 days", "deal.stage_changed",
+                 {"all": [{"field": "stage__name", "op": "eq", "value": "Proposal Sent"}]}, [
+                    {"type": "create_activity", "type_name": "Call",
+                     "subject": "Follow up on proposal", "due_in_days": 2}]),
+                ("New lead → call in 15 minutes", "lead.created", {}, [
+                    {"type": "create_activity", "type_name": "Call",
+                     "subject": "First response call (SLA)", "due_in_days": 0},
+                    {"type": "notify", "title": "New lead — call within 15 min"}]),
+                ("Big deal created → notify owner", "deal.created",
+                 {"all": [{"field": "value", "op": "gte", "value": 500000}]}, [
+                    {"type": "notify", "title": "High-value deal created (>₹5L)"}]),
+            ]
+            for order, (name, trig, conds, acts) in enumerate(recipes):
+                AutomationRule(name=name, trigger=trig, conditions=conds,
+                               actions=acts, order=order, is_active=True).save()
+
             # Lead sources + demo leads (L-1/L-2)
             sources = {}
             for s in ["Website", "Chatbot", "Referral", "IndiaMART", "Google Ads", "WhatsApp"]:

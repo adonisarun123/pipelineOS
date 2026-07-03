@@ -134,6 +134,10 @@ def mark_lost(deal: Deal, user: User, lost_reason: LostReason | None) -> Deal:
     deal.lost_reason = lost_reason
     deal.closed_at = timezone.now()
     deal.save(update_fields=["status", "lost_reason", "closed_at", "updated_at"])
+    from . import events
+
+    events.emit("deal.lost", {"id": deal.pk, "title": deal.title,
+                              "reason": lost_reason.label}, deal.tenant_id)
     return deal
 
 
@@ -146,6 +150,11 @@ def complete_activity(activity: Activity, user: User, outcome: str = "") -> dict
         activity.outcome = outcome
     activity.save(update_fields=["done", "done_at", "outcome", "updated_at"])
     prompt_next = bool(activity.deal_id) and deal_needs_next_activity(activity.deal)
+    from . import events
+
+    events.emit("activity.completed", {"id": activity.pk, "subject": activity.subject,
+                                       "outcome": activity.outcome,
+                                       "deal_id": activity.deal_id}, activity.tenant_id)
     return {"activity": activity, "prompt_next": prompt_next}
 
 
@@ -240,6 +249,10 @@ def convert_lead(*, lead, user: User, pipeline, stage=None, deal_title: str = ""
     lead.converted_at = tz.now()
     lead.save(update_fields=["status", "converted_person", "converted_organization",
                              "converted_deal", "converted_at", "updated_at"])
+    from . import events
+
+    events.emit("lead.converted", {"id": lead.pk, "name": lead.name,
+                                   "deal_id": deal.pk}, lead.tenant_id)
     return lead
 
 

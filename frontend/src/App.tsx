@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Activities from "./Activities";
 import { getAuth, setAuth } from "./api";
+import Automations from "./Automations";
 import Contacts from "./Contacts";
 import DealDetail from "./DealDetail";
 import ImportWizard from "./ImportWizard";
@@ -13,7 +14,8 @@ import Settings from "./Settings";
 import Team from "./Team";
 import type { Auth } from "./types";
 
-type View = "activities" | "pipeline" | "leads" | "contacts" | "import" | "team" | "settings";
+type View = "activities" | "pipeline" | "leads" | "contacts" | "import" | "team"
+  | "settings" | "automations";
 
 export default function App() {
   const [auth, setAuthState] = useState<Auth | null>(getAuth());
@@ -46,6 +48,12 @@ export default function App() {
               Import
             </a>
           )}
+          {(auth.role === "admin" || auth.role === "manager") && (
+            <a className={view === "automations" ? "active" : ""}
+              onClick={() => setView("automations")}>
+              Automations
+            </a>
+          )}
           {auth.role === "admin" && (
             <a className={view === "team" ? "active" : ""} onClick={() => setView("team")}>
               Team
@@ -70,6 +78,7 @@ export default function App() {
       {view === "import" && <ImportWizard />}
       {view === "team" && <Team selfId={auth.user_id} />}
       {view === "settings" && <Settings />}
+      {view === "automations" && <Automations isAdmin={auth.role === "admin"} />}
       {searchDeal !== null && (
         <DealDetail dealId={searchDeal} onClose={() => setSearchDeal(null)}
           onChanged={() => undefined} />

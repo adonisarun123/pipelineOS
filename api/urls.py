@@ -21,6 +21,8 @@ router.register("stages", views.StageViewSet, basename="stage")
 router.register("notifications", views.NotificationViewSet, basename="notification")
 router.register("files", views.FileAttachmentViewSet, basename="file")
 router.register("webhooks", views.WebhookSubscriptionViewSet, basename="webhook")
+router.register("automations", views.AutomationRuleViewSet, basename="automation")
+router.register("automation-runs", views.AutomationRunViewSet, basename="automationrun")
 router.register("lost-reasons", views.LostReasonViewSet, basename="lostreason")
 
 urlpatterns = [

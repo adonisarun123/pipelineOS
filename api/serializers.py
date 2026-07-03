@@ -291,3 +291,46 @@ class WebhookSubscriptionSerializer(serializers.ModelSerializer):
         fields = ["id", "url", "events", "secret", "is_active",
                   "last_delivery_at", "last_error"]
         extra_kwargs = {"secret": {"write_only": True}}  # never readable back
+
+
+class AutomationRuleSerializer(serializers.ModelSerializer):
+    pipeline_name = serializers.CharField(source="pipeline.name", read_only=True,
+                                          default=None)
+
+    class Meta:
+        from crm.automation import AutomationRule
+
+        model = AutomationRule
+        fields = ["id", "name", "trigger", "pipeline", "pipeline_name", "conditions",
+                  "actions", "is_active", "order"]
+
+    def validate_actions(self, value):
+        known = {"create_activity", "move_stage", "update_field", "change_owner", "notify"}
+        if not isinstance(value, list) or not value:
+            raise serializers.ValidationError("At least one action is required.")
+        bad = [a.get("type") for a in value if a.get("type") not in known]
+        if bad:
+            raise serializers.ValidationError(f"Unknown action type(s): {bad}")
+        return value
+
+    def validate_conditions(self, value):
+        from crm.automation import OPS
+
+        for group in ("all", "any"):
+            for c in (value or {}).get(group, []):
+                if c.get("op") not in OPS:
+                    raise serializers.ValidationError(f"Unknown operator: {c.get('op')}")
+                if not c.get("field"):
+                    raise serializers.ValidationError("Condition field is required.")
+        return value
+
+
+class AutomationRunSerializer(serializers.ModelSerializer):
+    rule_name = serializers.CharField(source="rule.name", read_only=True)
+
+    class Meta:
+        from crm.automation import AutomationRun
+
+        model = AutomationRun
+        fields = ["id", "rule", "rule_name", "event_type", "record_id", "status",
+                  "depth", "detail", "created_at"]
