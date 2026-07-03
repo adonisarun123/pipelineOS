@@ -15,6 +15,7 @@ ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "*").split(",")
 INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.auth",
+    "corsheaders",
     "rest_framework",
     "rest_framework.authtoken",
     "tenants",
@@ -24,10 +25,15 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.middleware.common.CommonMiddleware",
     "tenants.middleware.TenantContextMiddleware",
 ]
+
+# Split deploy: Vercel frontend origin(s), comma-separated
+CORS_ALLOWED_ORIGINS = [o for o in os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",") if o]
+CORS_ALLOW_HEADERS = ["authorization", "content-type"]
 
 ROOT_URLCONF = "config.urls"
 WSGI_APPLICATION = "config.wsgi.application"
