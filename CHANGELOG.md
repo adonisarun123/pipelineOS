@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.4.0] — 2026-07-03 (Increments 3–5)
+
+### Added
+- My Activities buckets + call outcomes (A-2/A-4); deal detail slide-over with timeline
+  and notes (C-4/D-9); schedule-next prompts on create/complete (D-5).
+- Global search with `/` shortcut and country-code-agnostic phone match (S-1);
+  deal list filters + kanban owner toggle (S-2 subset).
+- CSV contact import: auto-map, dedupe (skip/update/create), dry-run, per-row errors,
+  wizard UI (I-1).
+- Custom fields: typed EAV + denormalized JSON cache, `cf_<key>` filters, deal detail
+  editor, important-field flags, Trebound seeds (CF-1..4).
+- Append-only audit log (login/export/import) + role-gated, audit-logged CSV export
+  (U-4/I-3).
+
+### Evidence
+59 tests, ~92% coverage, ruff + tsc strict clean, live smoke per increment report.
+
 ## [0.2.0] — 2026-07-03 (Increment 2: Leads + TypeScript frontend + deploy)
 
 ### Added
