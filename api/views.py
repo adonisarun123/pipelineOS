@@ -3,6 +3,7 @@ from rest_framework import status, viewsets
 from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from crm import services
 from crm.models import Activity, Deal, LostReason, Organization, Person, Pipeline, Stage
@@ -44,6 +45,8 @@ class PipelineViewSet(viewsets.ReadOnlyModelViewSet):
             .filter(pipeline=pipeline, status=Deal.Status.OPEN)
             .select_related("stage", "organization", "owner")
         )
+        if request.query_params.get("owner") == "me":
+            deals = deals.filter(owner=request.user)
         by_stage: dict[int, list] = {}
         for deal in deals:
             by_stage.setdefault(deal.stage_id, []).append(deal)
@@ -67,10 +70,26 @@ class DealViewSet(viewsets.ModelViewSet):
     serializer_class = DealSerializer
 
     def get_queryset(self):
-        return services.annotate_flags(
+        qs = services.annotate_flags(
             services.visible_deals(self.request.user)
             .select_related("stage", "organization", "owner")
         )
+        p = self.request.query_params
+        if p.get("status"):
+            qs = qs.filter(status=p["status"])
+        if p.get("pipeline"):
+            qs = qs.filter(pipeline_id=p["pipeline"])
+        if p.get("stage"):
+            qs = qs.filter(stage_id=p["stage"])
+        if p.get("owner") == "me":
+            qs = qs.filter(owner=self.request.user)
+        elif p.get("owner"):
+            qs = qs.filter(owner_id=p["owner"])
+        if p.get("min_value"):
+            qs = qs.filter(value__gte=p["min_value"])
+        if p.get("max_value"):
+            qs = qs.filter(value__lte=p["max_value"])
+        return qs
 
     def perform_create(self, serializer):
         serializer.instance = services.create_deal(
@@ -297,3 +316,52 @@ class ActivityTypeViewSet(viewsets.ReadOnlyModelViewSet):
         from crm.models import ActivityType
 
         return ActivityType.objects.all()
+
+
+class SearchView(APIView):
+    """S-1: global search."""
+
+    def get(self, request):
+        from .serializers import DealSerializer, LeadSerializer, OrganizationSerializer, PersonSerializer
+
+        r = services.global_search(request.user, request.query_params.get("q", ""))
+        return Response({
+            "deals": DealSerializer(r["deals"], many=True).data,
+            "people": PersonSerializer(r["people"], many=True).data,
+            "organizations": OrganizationSerializer(r["organizations"], many=True).data,
+            "leads": LeadSerializer(r["leads"], many=True).data,
+        })
+
+
+class ImportView(APIView):
+    """I-1: CSV import. POST multipart: file, strategy, dry_run, mapping (json, optional)."""
+
+    def post(self, request):
+        import json as _json
+
+        from crm import importer
+
+        if request.user.role not in ("admin", "manager"):
+            return Response({"detail": "Import requires admin or manager role."}, status=403)
+        f = request.FILES.get("file")
+        if f is None:
+            return Response({"detail": "file is required"}, status=400)
+        if f.size > 10 * 1024 * 1024:
+            return Response({"detail": "file too large (10MB max)"}, status=400)
+        try:
+            content = f.read().decode("utf-8-sig")
+        except UnicodeDecodeError:
+            return Response({"detail": "file must be UTF-8 CSV"}, status=400)
+        import csv as _csv
+        import io as _io
+
+        headers = next(_csv.reader(_io.StringIO(content)), [])
+        mapping = (_json.loads(request.data["mapping"])
+                   if request.data.get("mapping") else importer.auto_map(headers))
+        dry_run = str(request.data.get("dry_run", "true")).lower() != "false"
+        report = importer.import_people_csv(
+            content=content, mapping=mapping,
+            strategy=request.data.get("strategy", "skip"),
+            user=request.user, dry_run=dry_run,
+        )
+        return Response({"mapping": mapping, "dry_run": dry_run, **report.as_dict()})

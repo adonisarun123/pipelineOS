@@ -12,10 +12,11 @@ export default function Kanban() {
   const [err, setErr] = useState("");
   const [openDeal, setOpenDeal] = useState<number | null>(null);
   const [scheduleFor, setScheduleFor] = useState<{ id: number; title: string } | null>(null);
+  const [mineOnly, setMineOnly] = useState(false);
 
-  const load = useCallback(async (p: number) => {
-    setBoard(await api<KanbanData>(`/pipelines/${p}/kanban/`));
-  }, []);
+  const load = useCallback(async (p: number, mine = mineOnly) => {
+    setBoard(await api<KanbanData>(`/pipelines/${p}/kanban/${mine ? "?owner=me" : ""}`));
+  }, [mineOnly]);
 
   useEffect(() => {
     void api<Paginated<Pipeline>>("/pipelines/").then((d) => {
@@ -83,6 +84,11 @@ export default function Kanban() {
             <option key={p.id} value={p.id}>{p.name}</option>
           ))}
         </select>
+        <label style={{ color: "var(--muted)", display: "flex", gap: 4, alignItems: "center" }}>
+          <input type="checkbox" checked={mineOnly}
+            onChange={(e) => { setMineOnly(e.target.checked); if (pid !== null) void load(pid, e.target.checked); }} />
+          My deals only
+        </label>
         <span className="err">{err}</span>
       </div>
       <form className="quickadd" onSubmit={quickAdd}>

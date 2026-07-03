@@ -312,3 +312,37 @@ def deal_timeline(deal: Deal) -> list[dict]:
                         else f"Lost — {deal.lost_reason.label if deal.lost_reason else ''}"),
         })
     return sorted(events, key=lambda e: (e["at"] is None, e["at"]), reverse=True)
+
+
+# ---------------- Global search (S-1) ----------------
+
+def global_search(user: User, q: str, limit: int = 8) -> dict:
+    """Navbar search: deals, people, orgs, leads by name/phone/email/title.
+    Phone queries match with or without country code."""
+    from .leads import Lead
+    from .models import Organization, Person
+
+    q = (q or "").strip()
+    if len(q) < 2:
+        return {"deals": [], "people": [], "organizations": [], "leads": []}
+    phone = normalize_phone(q) if any(c.isdigit() for c in q) else ""
+
+    deals = visible_deals(user).filter(title__icontains=q).select_related(
+        "organization", "stage")[:limit]
+
+    person_q = (Q(first_name__icontains=q) | Q(last_name__icontains=q)
+                | Q(emails__email__icontains=q))
+    if phone:
+        person_q |= Q(phones__normalized__contains=phone.lstrip("+"))
+    people = Person.objects.filter(person_q).distinct()[:limit]
+
+    orgs = Organization.objects.filter(name__icontains=q)[:limit]
+
+    lead_q = (Q(name__icontains=q) | Q(email__icontains=q)
+              | Q(organization_name__icontains=q))
+    if phone:
+        lead_q |= Q(phone_normalized__contains=phone.lstrip("+"))
+    leads = visible_owned(Lead.objects.all(), user).filter(lead_q)[:limit]
+
+    return {"deals": list(deals), "people": list(people),
+            "organizations": list(orgs), "leads": list(leads)}
