@@ -45,14 +45,20 @@ def funnel(pipeline, user: User, days: int | None = None) -> list[dict]:
 
     rows = []
     for i, stage in enumerate(stages):
-        count = len(entered[stage.id])
-        nxt = len(entered[stages[i + 1].id]) if i + 1 < len(stages) else None
+        cohort = entered[stage.id]
+        count = len(cohort)
+        if i + 1 < len(stages):
+            # Cohort-correct: of deals that entered THIS stage, how many later
+            # entered the next. Deals created mid-pipeline never inflate ratios.
+            converted = len(cohort & entered[stages[i + 1].id])
+        else:
+            converted = None
         rows.append({
             "stage": stage.name,
             "stage_id": stage.id,
             "entered": count,
-            "conversion_pct": (round(100 * nxt / count, 1)
-                               if nxt is not None and count else None),
+            "conversion_pct": (round(100 * converted / count, 1)
+                               if converted is not None and count else None),
             "median_days": (round(statistics.median(durations[stage.id]), 1)
                             if durations[stage.id] else None),
         })
