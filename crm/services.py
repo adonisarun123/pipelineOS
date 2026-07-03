@@ -165,9 +165,11 @@ def find_lead_duplicates(*, phone: str = "", email: str = "", org_name: str = ""
         dupes["leads"] = list(Lead.objects.filter(lead_q, status__in=["new", "attempted", "contacted"]))
     person_ids = set()
     if normalized:
-        person_ids |= set(PersonPhone.objects.filter(normalized=normalized).values_list("person_id", flat=True))
+        matches = PersonPhone.objects.filter(normalized=normalized)
+        person_ids |= set(matches.values_list("person_id", flat=True))
     if email:
-        person_ids |= set(PersonEmail.objects.filter(email__iexact=email).values_list("person_id", flat=True))
+        matches = PersonEmail.objects.filter(email__iexact=email)
+        person_ids |= set(matches.values_list("person_id", flat=True))
     if person_ids:
         dupes["people"] = list(Person.objects.filter(id__in=person_ids))
     return dupes

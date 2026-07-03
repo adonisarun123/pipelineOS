@@ -42,13 +42,19 @@ class Lead(TenantModel):
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.NEW)
     note = models.TextField(blank=True)
     # L-4: disqualification requires a reason (shared configurable list with deals)
-    disqualify_reason = models.ForeignKey(LostReason, null=True, blank=True, on_delete=models.PROTECT)
+    disqualify_reason = models.ForeignKey(
+        LostReason, null=True, blank=True, on_delete=models.PROTECT
+    )
     # L-3: conversion lineage for source-to-revenue attribution
-    converted_person = models.ForeignKey(Person, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    converted_person = models.ForeignKey(
+        Person, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
     converted_organization = models.ForeignKey(
         Organization, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
     )
-    converted_deal = models.ForeignKey(Deal, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    converted_deal = models.ForeignKey(
+        Deal, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
     converted_at = models.DateTimeField(null=True, blank=True)
 
     class Meta(TenantModel.Meta):

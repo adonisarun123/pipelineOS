@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.2.0] — 2026-07-03 (Increment 2: Leads + TypeScript frontend + deploy)
+
+### Added
+- Leads module (L-1..L-6): queue with status dispositions, configurable sources + UTM capture,
+  duplicate detection on normalized phone/email/org, one-click convert-to-deal carrying
+  activities/notes with full lineage, disqualify with mandatory reason.
+- Frontend migrated to Vite + React 18 + TypeScript strict: kanban port + new leads inbox
+  (dupe warnings, convert dialog, status pills). Django serves the built SPA for
+  single-server deploys.
+- Deployment: Dockerfile (gunicorn, auto-migrate), Vercel config + `VITE_API_BASE`,
+  CORS via django-cors-headers, DEPLOY.md runbook. Git repo with conventional commits.
+
+### Evidence
+38/38 tests, 90% coverage, ruff clean, tsc strict clean, Vite build 49 kB gz, live smoke:
+seeded leads listed, dupe hit on reformatted phone, convert produced deal + person found
+as duplicate post-conversion, built SPA + assets served 200.
+
 ## [0.1.0] — 2026-07-03 (Increment 1: Foundation + Deals Kanban)
 
 ### Added
