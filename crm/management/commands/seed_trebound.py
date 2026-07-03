@@ -135,7 +135,8 @@ class Command(BaseCommand):
                  {"all": [{"field": "stage__name", "op": "eq", "value": "Proposal Sent"}]}, [
                     {"type": "create_activity", "type_name": "Call",
                      "subject": "Follow up on proposal", "due_in_days": 2}]),
-                ("New lead → call in 15 minutes", "lead.created", {}, [
+                ("New lead → assign + call in 15 minutes", "lead.created", {}, [
+                    {"type": "change_owner", "username": "round_robin"},
                     {"type": "create_activity", "type_name": "Call",
                      "subject": "First response call (SLA)", "due_in_days": 0},
                     {"type": "notify", "title": "New lead — call within 15 min"}]),

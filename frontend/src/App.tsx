@@ -9,13 +9,14 @@ import Kanban from "./Kanban";
 import Leads from "./Leads";
 import Login from "./Login";
 import NotificationBell from "./NotificationBell";
+import Reports from "./Reports";
 import SearchBox from "./SearchBox";
 import Settings from "./Settings";
 import Team from "./Team";
 import type { Auth } from "./types";
 
 type View = "activities" | "pipeline" | "leads" | "contacts" | "import" | "team"
-  | "settings" | "automations";
+  | "settings" | "automations" | "reports";
 
 export default function App() {
   const [auth, setAuthState] = useState<Auth | null>(getAuth());
@@ -42,6 +43,9 @@ export default function App() {
           </a>
           <a className={view === "contacts" ? "active" : ""} onClick={() => setView("contacts")}>
             Contacts
+          </a>
+          <a className={view === "reports" ? "active" : ""} onClick={() => setView("reports")}>
+            Reports
           </a>
           {(auth.role === "admin" || auth.role === "manager") && (
             <a className={view === "import" ? "active" : ""} onClick={() => setView("import")}>
@@ -79,6 +83,7 @@ export default function App() {
       {view === "team" && <Team selfId={auth.user_id} />}
       {view === "settings" && <Settings />}
       {view === "automations" && <Automations isAdmin={auth.role === "admin"} />}
+      {view === "reports" && <Reports />}
       {searchDeal !== null && (
         <DealDetail dealId={searchDeal} onClose={() => setSearchDeal(null)}
           onChanged={() => undefined} />

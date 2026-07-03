@@ -1021,3 +1021,23 @@ class AutomationRunViewSet(viewsets.ReadOnlyModelViewSet):
         from .serializers import AutomationRunSerializer
 
         return AutomationRunSerializer
+
+
+class ReportsView(APIView):
+    """R-2..R-5, visibility-scoped. ?days=90&pipeline=<id> where applicable."""
+
+    def get(self, request, section: str):
+        from crm import reports
+
+        days = int(request.query_params.get("days", 90))
+        if section == "funnel":
+            pipeline = get_object_or_404(Pipeline,
+                                         pk=request.query_params.get("pipeline"))
+            return Response(reports.funnel(pipeline, request.user, days))
+        if section == "activity":
+            return Response(reports.activity_report(request.user, days))
+        if section == "won-lost":
+            return Response(reports.won_lost(request.user, days))
+        if section == "sources":
+            return Response(reports.source_roi(request.user, days))
+        return Response({"detail": "Unknown report."}, status=404)

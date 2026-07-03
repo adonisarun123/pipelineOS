@@ -32,4 +32,5 @@ urlpatterns = [
     path("import/people/", views.ImportView.as_view(), name="import-people"),
     path("email-account/", views.EmailAccountView.as_view(), name="email-account"),
     path("capture/<str:token>/", LeadCaptureView.as_view(), name="lead-capture"),
+    path("reports/<str:section>/", views.ReportsView.as_view(), name="reports"),
 ] + router.urls
