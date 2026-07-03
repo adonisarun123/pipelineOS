@@ -44,8 +44,21 @@ function PersonPanel({ personId, onClose }: { personId: number; onClose: () => v
         </div>
         <p style={{ color: "var(--muted)", fontSize: 13 }}>
           {person.job_title || "—"} · {person.organization_name ?? "no organization"}<br />
-          {person.phones.map((p) => p.normalized).join(", ") || "no phone"} ·{" "}
-          {person.emails.map((e) => e.email).join(", ") || "no email"}
+          {person.phones.length
+            ? person.phones.map((p) => (
+                <span key={p.normalized}>
+                  <a href={`tel:${p.normalized}`}>📞 {p.normalized}</a>{" "}
+                  <a href={`https://wa.me/${p.normalized.replace("+", "")}`}
+                    target="_blank" rel="noreferrer">💬</a>{" "}
+                </span>
+              ))
+            : "no phone"}
+          {" · "}
+          {person.emails.map((e) => (
+            <a key={e.email} href={`mailto:${e.email}`}>{e.email}</a>
+          )).reduce<React.ReactNode[]>((acc, el, i) =>
+            i === 0 ? [el] : [...acc, ", ", el], []) as React.ReactNode}
+          {person.emails.length === 0 && "no email"}
         </p>
         <h3 style={{ fontSize: 14 }}>Timeline</h3>
         {events.map((e, i) => (
