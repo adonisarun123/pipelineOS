@@ -11,6 +11,7 @@ router.register("organizations", views.OrganizationViewSet, basename="organizati
 router.register("people", views.PersonViewSet, basename="person")
 router.register("leads", views.LeadViewSet, basename="lead")
 router.register("lead-sources", views.LeadSourceViewSet, basename="leadsource")
+router.register("activity-types", views.ActivityTypeViewSet, basename="activitytype")
 router.register("lost-reasons", views.LostReasonViewSet, basename="lostreason")
 
 urlpatterns = [path("auth/login/", views.LoginView.as_view(), name="login")] + router.urls

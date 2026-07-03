@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, inr } from "./api";
+import DealDetail from "./DealDetail";
+import ScheduleDialog from "./ScheduleDialog";
 import type { Deal, Kanban as KanbanData, LostReason, Paginated, Pipeline } from "./types";
 
 export default function Kanban() {
@@ -8,6 +10,8 @@ export default function Kanban() {
   const [board, setBoard] = useState<KanbanData | null>(null);
   const [reasons, setReasons] = useState<LostReason[]>([]);
   const [err, setErr] = useState("");
+  const [openDeal, setOpenDeal] = useState<number | null>(null);
+  const [scheduleFor, setScheduleFor] = useState<{ id: number; title: string } | null>(null);
 
   const load = useCallback(async (p: number) => {
     setBoard(await api<KanbanData>(`/pipelines/${p}/kanban/`));
@@ -59,12 +63,13 @@ export default function Kanban() {
     const f = new FormData(e.currentTarget);
     const title = f.get("title") as string;
     if (!title || pid === null) return;
-    await api("/deals/", {
+    const created = await api<Deal>("/deals/", {
       method: "POST",
       body: { title, value: (f.get("value") as string) || "0", pipeline: pid },
     });
     e.currentTarget.reset();
     refresh();
+    setScheduleFor({ id: created.id, title: created.title }); // D-5: prompt on creation
   };
 
   return (
@@ -105,7 +110,8 @@ export default function Kanban() {
                 className={`deal ${d.is_rotten ? "rotten" : ""}`}
                 draggable
                 onDragStart={(e) => e.dataTransfer.setData("text/plain", String(d.id))}
-                title={d.is_rotten ? "Rotting: no recent activity" : ""}
+                onClick={() => setOpenDeal(d.id)}
+                title={d.is_rotten ? "Rotting: no recent activity" : "Click for details"}
               >
                 <div className="t">{d.title}</div>
                 <div className="sub">
@@ -127,6 +133,13 @@ export default function Kanban() {
           </div>
         ))}
       </div>
+      {openDeal !== null && (
+        <DealDetail dealId={openDeal} onClose={() => setOpenDeal(null)} onChanged={refresh} />
+      )}
+      {scheduleFor && (
+        <ScheduleDialog dealId={scheduleFor.id} dealTitle={scheduleFor.title} open
+          onClose={() => setScheduleFor(null)} onScheduled={refresh} />
+      )}
     </div>
   );
 }

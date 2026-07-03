@@ -252,3 +252,63 @@ def disqualify_lead(lead, user: User, reason) -> None:
     lead.status = Lead.Status.DISQUALIFIED
     lead.disqualify_reason = reason
     lead.save(update_fields=["status", "disqualify_reason", "updated_at"])
+
+
+# ---------------- My Activities (A-2) & Timeline (C-4/D-9) ----------------
+
+def my_activity_buckets(user: User) -> dict:
+    """A-2: Overdue / Today / This week / Planned — a rep's homepage."""
+    from datetime import timedelta
+
+    now = timezone.localtime()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_end = today_start + timedelta(days=1)
+    week_end = today_start + timedelta(days=7 - today_start.weekday())
+    qs = (Activity.objects.filter(owner=user, done=False)
+          .select_related("type", "deal").order_by("due_at"))
+    return {
+        "overdue": list(qs.filter(due_at__lt=today_start)),
+        "today": list(qs.filter(due_at__gte=today_start, due_at__lt=today_end)),
+        "this_week": list(qs.filter(due_at__gte=today_end, due_at__lt=week_end)),
+        "planned": list(qs.filter(due_at__gte=week_end)),
+    }
+
+
+def deal_timeline(deal: Deal) -> list[dict]:
+    """C-4: every event in reverse chronological order — the product's memory."""
+
+    events: list[dict] = [{
+        "kind": "created", "at": deal.created_at,
+        "by": deal.created_by.username if deal.created_by else None,
+        "summary": f"Deal created: {deal.title}",
+    }]
+    for h in deal.stage_history.select_related("from_stage", "to_stage", "changed_by"):
+        if h.from_stage_id is None:
+            continue  # creation already shown
+        events.append({
+            "kind": "stage", "at": h.changed_at,
+            "by": h.changed_by.username if h.changed_by else None,
+            "summary": f"Stage: {h.from_stage.name} → {h.to_stage.name}",
+        })
+    for a in deal.activities.select_related("type", "owner"):
+        events.append({
+            "kind": "activity_done" if a.done else "activity_planned",
+            "at": a.done_at if a.done else a.due_at,
+            "by": a.owner.username, "activity_id": a.id,
+            "summary": f"{a.type.name}: {a.subject}"
+                       + (f" — {a.outcome}" if a.outcome else ""),
+            "done": a.done, "note": a.note,
+        })
+    for n in deal.notes.select_related("author"):
+        events.append({
+            "kind": "note", "at": n.created_at,
+            "by": n.author.username if n.author else None,
+            "summary": n.body,
+        })
+    if deal.closed_at:
+        events.append({
+            "kind": deal.status, "at": deal.closed_at, "by": None,
+            "summary": ("Won 🎉" if deal.status == Deal.Status.WON
+                        else f"Lost — {deal.lost_reason.label if deal.lost_reason else ''}"),
+        })
+    return sorted(events, key=lambda e: (e["at"] is None, e["at"]), reverse=True)

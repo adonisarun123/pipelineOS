@@ -193,5 +193,26 @@ class Activity(TenantModel):
     class Meta(TenantModel.Meta):
         indexes = [models.Index(fields=["tenant", "owner", "done", "due_at"])]
 
+class Note(TenantModel):
+    """Phase 1 notes; rendered in the timeline (C-4). Body is plain text."""
+
+    body = models.TextField()
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    deal = models.ForeignKey(
+        Deal, null=True, blank=True, on_delete=models.CASCADE, related_name="notes"
+    )
+    person = models.ForeignKey(
+        Person, null=True, blank=True, on_delete=models.CASCADE, related_name="notes"
+    )
+    lead = models.ForeignKey(
+        "crm.Lead", null=True, blank=True, on_delete=models.CASCADE, related_name="notes"
+    )
+
+    class Meta(TenantModel.Meta):
+        indexes = [models.Index(fields=["tenant", "deal", "created_at"])]
+
+
 # Leads module lives in leads.py; import registers models with the app registry.
 from .leads import Lead, LeadSource  # noqa: E402,F401

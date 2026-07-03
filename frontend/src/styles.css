@@ -36,6 +36,9 @@ tr.overdue td:first-child { border-left: 3px solid var(--rot); }
 .pill.contacted { background: #fff0b3; }
 .pill.qualified { background: #e3fcef; color: var(--ok); }
 .pill.disqualified { background: #ffebe6; color: var(--rot); }
+.pill.open { background: #deebff; color: var(--accent); }
+.pill.won { background: #e3fcef; color: var(--ok); }
+.pill.lost { background: #ffebe6; color: var(--rot); }
 .toolbar { display: flex; gap: 8px; padding: 12px 20px 0; align-items: center; }
 dialog { border: none; border-radius: 8px; padding: 20px; box-shadow: 0 8px 24px rgba(9,30,66,.3); min-width: 320px; }
 dialog form { display: flex; flex-direction: column; gap: 10px; }

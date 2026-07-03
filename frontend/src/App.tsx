@@ -1,11 +1,12 @@
 import { useState } from "react";
+import Activities from "./Activities";
 import { getAuth, setAuth } from "./api";
 import Kanban from "./Kanban";
 import Leads from "./Leads";
 import Login from "./Login";
 import type { Auth } from "./types";
 
-type View = "pipeline" | "leads";
+type View = "activities" | "pipeline" | "leads";
 
 export default function App() {
   const [auth, setAuthState] = useState<Auth | null>(getAuth());
@@ -20,6 +21,9 @@ export default function App() {
       <header>
         <h1>PipelineOS</h1>
         <nav>
+          <a className={view === "activities" ? "active" : ""} onClick={() => setView("activities")}>
+            My Activities
+          </a>
           <a className={view === "pipeline" ? "active" : ""} onClick={() => setView("pipeline")}>
             Pipeline
           </a>
@@ -34,7 +38,9 @@ export default function App() {
           </button>
         </span>
       </header>
-      {view === "pipeline" ? <Kanban /> : <Leads />}
+      {view === "activities" && <Activities />}
+      {view === "pipeline" && <Kanban />}
+      {view === "leads" && <Leads />}
     </div>
   );
 }

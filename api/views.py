@@ -91,6 +91,29 @@ class DealViewSet(viewsets.ModelViewSet):
         services.change_stage(deal, stage, request.user)
         return Response(DealSerializer(deal).data)
 
+    @action(detail=True, methods=["get"])
+    def timeline(self, request, pk=None):
+        """C-4/D-9: the deal's full history, reverse chronological."""
+        deal = self.get_object()
+        events = services.deal_timeline(deal)
+        for e in events:
+            e["at"] = e["at"].isoformat() if e["at"] else None
+        return Response({"deal": DealSerializer(deal).data, "events": events})
+
+    @action(detail=True, methods=["post"])
+    def add_note(self, request, pk=None):
+        from crm.models import Note
+
+        from .serializers import NoteSerializer
+
+        deal = self.get_object()
+        body = (request.data.get("body") or "").strip()
+        if not body:
+            return Response({"detail": "Note body is required."}, status=400)
+        note = Note(body=body, deal=deal, author=request.user, created_by=request.user)
+        note.save()
+        return Response(NoteSerializer(note).data, status=201)
+
     @action(detail=True, methods=["post"])
     def won(self, request, pk=None):
         deal = self.get_object()
@@ -124,6 +147,12 @@ class ActivityViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user,
                         owner=serializer.validated_data.get("owner") or self.request.user)
+
+    @action(detail=False, methods=["get"])
+    def my(self, request):
+        """A-2: Overdue / Today / This week / Planned — a rep's homepage."""
+        buckets = services.my_activity_buckets(request.user)
+        return Response({k: ActivitySerializer(v, many=True).data for k, v in buckets.items()})
 
     @action(detail=True, methods=["post"])
     def complete(self, request, pk=None):
@@ -254,3 +283,17 @@ class LeadSourceViewSet(viewsets.ReadOnlyModelViewSet):
         from crm.leads import LeadSource
 
         return LeadSource.objects.all()
+
+
+class ActivityTypeViewSet(viewsets.ReadOnlyModelViewSet):
+    pagination_class = None
+
+    def get_serializer_class(self):
+        from .serializers import ActivityTypeSerializer
+
+        return ActivityTypeSerializer
+
+    def get_queryset(self):
+        from crm.models import ActivityType
+
+        return ActivityType.objects.all()

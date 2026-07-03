@@ -53,10 +53,13 @@ class ActivityTypeSerializer(serializers.ModelSerializer):
 
 
 class ActivitySerializer(serializers.ModelSerializer):
+    type_name = serializers.CharField(source="type.name", read_only=True)
+    deal_title = serializers.CharField(source="deal.title", read_only=True, default=None)
+
     class Meta:
         model = Activity
-        fields = ["id", "type", "subject", "due_at", "duration_min", "owner",
-                  "deal", "person", "note", "done", "done_at", "outcome"]
+        fields = ["id", "type", "type_name", "subject", "due_at", "duration_min", "owner",
+                  "deal", "deal_title", "person", "lead", "note", "done", "done_at", "outcome"]
         read_only_fields = ["done", "done_at", "outcome"]
         extra_kwargs = {"owner": {"required": False}}
 
@@ -115,3 +118,14 @@ class LeadSerializer(serializers.ModelSerializer):
 
             attrs["phone_normalized"] = normalize_phone(attrs["phone_raw"])
         return attrs
+
+
+class NoteSerializer(serializers.ModelSerializer):
+    author_name = serializers.CharField(source="author.username", read_only=True, default=None)
+
+    class Meta:
+        from crm.models import Note
+
+        model = Note
+        fields = ["id", "body", "author", "author_name", "deal", "person", "lead", "created_at"]
+        read_only_fields = ["author"]
