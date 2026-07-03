@@ -278,6 +278,7 @@ def disqualify_lead(lead, user: User, reason) -> None:
     lead.status = Lead.Status.DISQUALIFIED
     lead.disqualify_reason = reason
     lead.save(update_fields=["status", "disqualify_reason", "updated_at"])
+    stamp_first_response(lead)
 
 
 # ---------------- My Activities (A-2) & Timeline (C-4/D-9) ----------------
@@ -580,3 +581,47 @@ def merge_organizations(primary, duplicate, user: User) -> dict:
               detail={"merged_from": duplicate.pk, "filled": filled, "moved": moved},
               tenant_id=primary.tenant_id)
     return {"filled": filled, "moved": moved}
+
+
+# ---------------- L-7 capture + L-8 SLA ----------------
+
+LEAD_CAPTURE_FIELDS = ("name", "organization_name", "phone_raw", "email", "note")
+
+
+def capture_lead(*, source, payload: dict) -> "object":
+    """L-7: webhook lead injection (Asha chatbot, webforms, ad platforms)."""
+    from .leads import Lead
+
+    mapping = source.field_mapping or {}
+    data = {}
+    for key, value in payload.items():
+        field = mapping.get(key, key)
+        if field in LEAD_CAPTURE_FIELDS and isinstance(value, str):
+            data[field] = value[:255]
+    if not data.get("name"):
+        raise ValidationError("Lead name is required (map a field to 'name').")
+    utm = {k: str(v)[:200] for k, v in payload.items() if k.startswith("utm_")}
+    lead = Lead(source=source, utm=utm, tenant_id=source.tenant_id, **data)
+    lead.phone_normalized = normalize_phone(lead.phone_raw) if lead.phone_raw else ""
+    lead.save()
+    from . import events
+
+    events.emit("lead.created", {"id": lead.pk, "name": lead.name,
+                                 "source": source.name}, lead.tenant_id)
+    return lead
+
+
+def lead_is_sla_overdue(lead) -> bool:
+    """L-8: first response due within sla_minutes of creation."""
+    sla = getattr(lead.source, "sla_minutes", None) if lead.source_id else None
+    if not sla or lead.first_response_at or lead.status != "new":
+        return False
+    from datetime import timedelta
+
+    return timezone.now() > lead.created_at + timedelta(minutes=sla)
+
+
+def stamp_first_response(lead) -> None:
+    if lead.first_response_at is None:
+        lead.first_response_at = timezone.now()
+        lead.save(update_fields=["first_response_at", "updated_at"])

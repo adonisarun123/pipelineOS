@@ -24,15 +24,28 @@ def register(consumer: Callable[[str, dict, int], None]) -> None:
     _consumers.append(consumer)
 
 
+def dispatch_now(event_type: str, payload: dict, tenant_id: int) -> None:
+    """Synchronous dispatch: consumers + webhooks. Celery task calls this too."""
+    for consumer in list(_consumers):
+        try:
+            consumer(event_type, payload, tenant_id)
+        except Exception:  # consumers must never break the request
+            logger.exception("Event consumer failed for %s", event_type)
+    _deliver_webhooks(event_type, payload, tenant_id)
+
+
 def emit(event_type: str, payload: dict, tenant_id: int) -> None:
-    """Fire after the surrounding transaction commits (never on rollback)."""
+    """Fire after the surrounding transaction commits (never on rollback).
+    AU-2: routed through Celery when a broker is configured; sync otherwise."""
+    from django.conf import settings
+
     def _dispatch():
-        for consumer in list(_consumers):
-            try:
-                consumer(event_type, payload, tenant_id)
-            except Exception:  # consumers must never break the request
-                logger.exception("Event consumer failed for %s", event_type)
-        _deliver_webhooks(event_type, payload, tenant_id)
+        if getattr(settings, "USE_CELERY", False):
+            from .tasks import dispatch_event_task
+
+            dispatch_event_task.delay(event_type, payload, tenant_id)
+        else:
+            dispatch_now(event_type, payload, tenant_id)
 
     transaction.on_commit(_dispatch)
 

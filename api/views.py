@@ -524,6 +524,7 @@ class LeadViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
             return Response({"detail": "Use convert/disqualify for closing statuses."}, status=400)
         lead.status = new_status
         lead.save(update_fields=["status", "updated_at"])
+        services.stamp_first_response(lead)  # L-8
         return Response(self.get_serializer(lead).data)
 
 
@@ -538,7 +539,14 @@ class LeadSourceViewSet(AdminWriteMixin, viewsets.ModelViewSet):
         class LeadSourceSerializer(s.ModelSerializer):
             class Meta:
                 model = LeadSource
-                fields = ["id", "name"]
+                fields = ["id", "name", "token", "sla_minutes", "field_mapping"]
+
+            def to_representation(self, instance):
+                data = super().to_representation(instance)
+                req = self.context.get("request")
+                if req is None or req.user.role != "admin":
+                    data.pop("token", None)  # token visible to admins only
+                return data
 
         return LeadSourceSerializer
 

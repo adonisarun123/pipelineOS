@@ -8,9 +8,13 @@ from .models import Deal, LostReason, Organization, Person
 
 
 class LeadSource(TenantModel):
-    """L-2: configurable per tenant."""
+    """L-2: configurable per tenant. token secures the L-7 capture endpoint;
+    sla_minutes drives L-8 first-response timers."""
 
     name = models.CharField(max_length=100)
+    token = models.CharField(max_length=48, blank=True, db_index=True)  # L-7
+    sla_minutes = models.PositiveIntegerField(null=True, blank=True)  # L-8
+    field_mapping = models.JSONField(default=dict, blank=True)  # inbound key -> lead field
 
     class Meta(TenantModel.Meta):
         constraints = [
@@ -56,6 +60,7 @@ class Lead(TenantModel):
         Deal, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
     )
     converted_at = models.DateTimeField(null=True, blank=True)
+    first_response_at = models.DateTimeField(null=True, blank=True)  # L-8
 
     class Meta(TenantModel.Meta):
         indexes = [

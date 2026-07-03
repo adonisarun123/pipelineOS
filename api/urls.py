@@ -2,6 +2,7 @@ from django.urls import path
 from rest_framework.routers import DefaultRouter
 
 from . import views
+from .capture import LeadCaptureView
 
 router = DefaultRouter()
 router.register("pipelines", views.PipelineViewSet, basename="pipeline")
@@ -30,4 +31,5 @@ urlpatterns = [
     path("search/", views.SearchView.as_view(), name="search"),
     path("import/people/", views.ImportView.as_view(), name="import-people"),
     path("email-account/", views.EmailAccountView.as_view(), name="email-account"),
+    path("capture/<str:token>/", LeadCaptureView.as_view(), name="lead-capture"),
 ] + router.urls

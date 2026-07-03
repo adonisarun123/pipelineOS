@@ -23,6 +23,7 @@ _depth: contextvars.ContextVar[int] = contextvars.ContextVar("automation_depth",
 TRIGGERS = [
     "deal.created", "deal.stage_changed", "deal.won", "deal.lost",
     "lead.created", "lead.converted", "activity.completed",
+    "deal.stage_idle", "activity.overdue",  # time-based (run_time_automations)
 ]
 OPS = ("eq", "ne", "gt", "gte", "lt", "lte", "contains", "in")
 
@@ -218,6 +219,8 @@ def handle_event(event_type: str, payload: dict, tenant_id: int) -> None:
         record = _load_record(event_type, payload, tenant_id)
         if record is None:
             return
+        for k, v in (payload.get("_attrs") or {}).items():
+            setattr(record, k, v)  # time-trigger computed values (e.g. days_idle)
         actor = _system_user(tenant_id) or record.owner
         for rule in rules:
             if rule.pipeline_id and getattr(record, "pipeline_id", None) != rule.pipeline_id:

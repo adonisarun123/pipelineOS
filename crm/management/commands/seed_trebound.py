@@ -148,9 +148,13 @@ class Command(BaseCommand):
                                actions=acts, order=order, is_active=True).save()
 
             # Lead sources + demo leads (L-1/L-2)
+            import secrets
+
             sources = {}
-            for s in ["Website", "Chatbot", "Referral", "IndiaMART", "Google Ads", "WhatsApp"]:
-                src = LeadSource(name=s)
+            for s, sla in [("Website", 60), ("Chatbot", 15), ("Referral", None),
+                           ("IndiaMART", 30), ("Google Ads", 30), ("WhatsApp", 15)]:
+                src = LeadSource(name=s, token=secrets.token_urlsafe(24),
+                                 sla_minutes=sla)
                 src.save()
                 sources[s] = src
             for lname, lorg, lphone, lsrc, lowner in [

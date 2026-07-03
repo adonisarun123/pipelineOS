@@ -101,6 +101,11 @@ else:
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "pipelineos@localhost")
 
+# AU-2: Celery active only with a broker; sync fallback otherwise.
+CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "")
+USE_CELERY = bool(CELERY_BROKER_URL)
+CELERY_TASK_ALWAYS_EAGER = os.environ.get("CELERY_EAGER", "0") == "1"
+
 # File attachments: local disk in Phase 1; S3-compatible later. Served ONLY via
 # the authenticated download endpoint — MEDIA_URL is deliberately not routed.
 MEDIA_ROOT = os.environ.get("DJANGO_MEDIA_ROOT", str(BASE_DIR / "media"))

@@ -100,6 +100,12 @@ class LeadSerializer(serializers.ModelSerializer):
 
     source_name = serializers.CharField(source="source.name", read_only=True, default=None)
     owner_name = serializers.CharField(source="owner.username", read_only=True, default=None)
+    sla_overdue = serializers.SerializerMethodField()
+
+    def get_sla_overdue(self, obj) -> bool:
+        from crm.services import lead_is_sla_overdue
+
+        return lead_is_sla_overdue(obj)
 
     class Meta:
         from crm.leads import Lead
@@ -108,7 +114,8 @@ class LeadSerializer(serializers.ModelSerializer):
         fields = ["id", "name", "organization_name", "phone_raw", "phone_normalized",
                   "email", "source", "source_name", "utm", "owner", "owner_name",
                   "status", "note", "disqualify_reason", "converted_deal",
-                  "converted_person", "converted_organization", "converted_at", "created_at"]
+                  "converted_person", "converted_organization", "converted_at",
+                  "created_at", "sla_overdue"]
         read_only_fields = ["phone_normalized", "status", "disqualify_reason",
                             "converted_deal", "converted_person", "converted_organization",
                             "converted_at"]
