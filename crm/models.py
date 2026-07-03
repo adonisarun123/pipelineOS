@@ -182,6 +182,9 @@ class Activity(TenantModel):
     person = models.ForeignKey(
         Person, null=True, blank=True, on_delete=models.CASCADE, related_name="activities"
     )
+    lead = models.ForeignKey(
+        "crm.Lead", null=True, blank=True, on_delete=models.CASCADE, related_name="activities"
+    )
     note = models.TextField(blank=True)
     done = models.BooleanField(default=False)
     done_at = models.DateTimeField(null=True, blank=True)
@@ -189,3 +192,6 @@ class Activity(TenantModel):
 
     class Meta(TenantModel.Meta):
         indexes = [models.Index(fields=["tenant", "owner", "done", "due_at"])]
+
+# Leads module lives in leads.py; import registers models with the app registry.
+from .leads import Lead, LeadSource  # noqa: E402,F401

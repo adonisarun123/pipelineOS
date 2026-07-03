@@ -7,6 +7,7 @@ from django.utils import timezone
 
 from accounts.models import Team, User
 from crm import services
+from crm.leads import Lead, LeadSource
 from crm.models import Activity, ActivityType, LostReason, Organization, Pipeline, Stage
 from tenants.context import tenant_context
 from tenants.models import Tenant
@@ -91,6 +92,23 @@ class Command(BaseCommand):
             )
             rotten.stage_entered_at = now - timedelta(days=10)
             rotten.save(update_fields=["stage_entered_at"])
+
+            # Lead sources + demo leads (L-1/L-2)
+            sources = {}
+            for s in ["Website", "Chatbot", "Referral", "IndiaMART", "Google Ads", "WhatsApp"]:
+                src = LeadSource(name=s)
+                src.save()
+                sources[s] = src
+            for lname, lorg, lphone, lsrc, lowner in [
+                ("Priya Sharma", "Razorpay", "98450 11223", "Website", "rep1"),
+                ("Amit Verma", "Swiggy", "99000 55667", "Chatbot", "rep2"),
+                ("Neha Gupta", "", "97411 88990", "WhatsApp", "rep1"),
+            ]:
+                lead = Lead(name=lname, organization_name=lorg, phone_raw=lphone,
+                            phone_normalized=services.normalize_phone(lphone),
+                            source=sources[lsrc], owner=users[lowner],
+                            note="Inbound enquiry — corporate offsite")
+                lead.save()
 
         self.stdout.write(self.style.SUCCESS(
             f"Seeded tenant 'trebound' (id={tenant.id}); users admin/manager/rep1/rep2; "

@@ -88,3 +88,30 @@ class DealSerializer(serializers.ModelSerializer):
         if stage and pipeline and stage.pipeline_id != pipeline.id:
             raise serializers.ValidationError("Stage does not belong to pipeline.")
         return attrs
+
+
+class LeadSerializer(serializers.ModelSerializer):
+    from crm.leads import Lead as _Lead  # local import to avoid top-level cycle
+
+    source_name = serializers.CharField(source="source.name", read_only=True, default=None)
+    owner_name = serializers.CharField(source="owner.username", read_only=True, default=None)
+
+    class Meta:
+        from crm.leads import Lead
+
+        model = Lead
+        fields = ["id", "name", "organization_name", "phone_raw", "phone_normalized",
+                  "email", "source", "source_name", "utm", "owner", "owner_name",
+                  "status", "note", "disqualify_reason", "converted_deal",
+                  "converted_person", "converted_organization", "converted_at", "created_at"]
+        read_only_fields = ["phone_normalized", "status", "disqualify_reason",
+                            "converted_deal", "converted_person", "converted_organization",
+                            "converted_at"]
+        extra_kwargs = {"owner": {"required": False}}
+
+    def validate(self, attrs):
+        if "phone_raw" in attrs:
+            from crm.services import normalize_phone
+
+            attrs["phone_normalized"] = normalize_phone(attrs["phone_raw"])
+        return attrs

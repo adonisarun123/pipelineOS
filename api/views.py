@@ -162,3 +162,95 @@ class LostReasonViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         return LostReason.objects.all()
+
+
+class LeadViewSet(viewsets.ModelViewSet):
+    """L-1 queue + L-3/L-4/L-5 actions."""
+
+    def get_serializer_class(self):
+        from .serializers import LeadSerializer
+
+        return LeadSerializer
+
+    def get_queryset(self):
+        from crm.leads import Lead
+
+        qs = services.visible_owned(Lead.objects.select_related("source", "owner"),
+                                    self.request.user)
+        status_f = self.request.query_params.get("status")
+        if status_f:
+            qs = qs.filter(status=status_f)
+        return qs
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user,
+                        owner=serializer.validated_data.get("owner") or self.request.user)
+
+    @action(detail=False, methods=["get"])
+    def duplicates(self, request):
+        """L-5: check before save. ?phone=&email=&org_name="""
+        from .serializers import LeadSerializer, PersonSerializer
+
+        d = services.find_lead_duplicates(
+            phone=request.query_params.get("phone", ""),
+            email=request.query_params.get("email", ""),
+            org_name=request.query_params.get("org_name", ""),
+        )
+        return Response({"leads": LeadSerializer(d["leads"], many=True).data,
+                         "people": PersonSerializer(d["people"], many=True).data})
+
+    @action(detail=True, methods=["post"])
+    def convert(self, request, pk=None):
+        """L-3: one-click convert to deal."""
+        lead = self.get_object()
+        pipeline = get_object_or_404(Pipeline, pk=request.data.get("pipeline_id"))
+        stage = None
+        if request.data.get("stage_id"):
+            stage = get_object_or_404(Stage, pk=request.data["stage_id"])
+        services.convert_lead(lead=lead, user=request.user, pipeline=pipeline, stage=stage,
+                              deal_title=request.data.get("deal_title", ""),
+                              value=request.data.get("value", 0))
+        return Response(self.get_serializer(lead).data)
+
+    @action(detail=True, methods=["post"])
+    def disqualify(self, request, pk=None):
+        lead = self.get_object()
+        reason = None
+        if request.data.get("reason_id"):
+            reason = get_object_or_404(LostReason, pk=request.data["reason_id"])
+        services.disqualify_lead(lead, request.user, reason)
+        return Response(self.get_serializer(lead).data)
+
+    @action(detail=True, methods=["post"])
+    def set_status(self, request, pk=None):
+        """L-1 fast disposition: new → attempted → contacted."""
+        from crm.leads import Lead
+
+        lead = self.get_object()
+        new_status = request.data.get("status")
+        if new_status not in (Lead.Status.NEW, Lead.Status.ATTEMPTED, Lead.Status.CONTACTED):
+            return Response({"detail": "Use convert/disqualify for closing statuses."}, status=400)
+        lead.status = new_status
+        lead.save(update_fields=["status", "updated_at"])
+        return Response(self.get_serializer(lead).data)
+
+
+class LeadSourceViewSet(viewsets.ReadOnlyModelViewSet):
+    pagination_class = None
+
+    def get_serializer_class(self):
+        from rest_framework import serializers as s
+
+        from crm.leads import LeadSource
+
+        class LeadSourceSerializer(s.ModelSerializer):
+            class Meta:
+                model = LeadSource
+                fields = ["id", "name"]
+
+        return LeadSourceSerializer
+
+    def get_queryset(self):
+        from crm.leads import LeadSource
+
+        return LeadSource.objects.all()
