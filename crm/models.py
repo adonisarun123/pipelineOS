@@ -221,3 +221,21 @@ class Note(TenantModel):
 from .audit import AuditLog  # noqa: E402,F401
 from .custom_fields import CustomFieldDef, CustomFieldValue  # noqa: E402,F401
 from .leads import Lead, LeadSource  # noqa: E402,F401
+
+
+class SavedView(TenantModel):
+    """S-3: a view = filters + columns + sort; private or shared with team."""
+
+    name = models.CharField(max_length=100)
+    entity = models.CharField(max_length=15)  # deal / lead / person / organization
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="saved_views"
+    )
+    params = models.JSONField(default=dict, blank=True)   # filter query params
+    columns = models.JSONField(default=list, blank=True)
+    sort = models.CharField(max_length=50, blank=True)
+    is_shared = models.BooleanField(default=False)
+    is_pinned = models.BooleanField(default=False)  # admins pin defaults per team
+
+    class Meta(TenantModel.Meta):
+        ordering = ["name"]

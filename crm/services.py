@@ -346,3 +346,46 @@ def global_search(user: User, q: str, limit: int = 8) -> dict:
 
     return {"deals": list(deals), "people": list(people),
             "organizations": list(orgs), "leads": list(leads)}
+
+
+# ---------------- Record transfer (U-3) ----------------
+
+@transaction.atomic
+def transfer_records(*, from_user: User, to_user: User, actor: User) -> dict:
+    """One-click bulk reassignment when a user leaves. Audit-logged by caller's view."""
+    from .leads import Lead
+    from .models import Organization, Person
+
+    if from_user.tenant_id != to_user.tenant_id:
+        raise ValidationError("Users belong to different tenants.")
+    if from_user.pk == to_user.pk:
+        raise ValidationError("Source and target user are the same.")
+    counts = {}
+    for model in (Deal, Lead, Person, Organization, Activity):
+        counts[model.__name__.lower()] = (
+            model.objects.filter(owner=from_user).update(owner=to_user)
+        )
+    return counts
+
+
+def person_timeline(person) -> list[dict]:
+    """C-4 for people: activities, notes, deal links, reverse chronological."""
+    events: list[dict] = [{
+        "kind": "created", "at": person.created_at,
+        "by": person.created_by.username if person.created_by else None,
+        "summary": f"Contact created: {person.name}",
+    }]
+    for a in person.activities.select_related("type", "owner"):
+        events.append({
+            "kind": "activity_done" if a.done else "activity_planned",
+            "at": a.done_at if a.done else a.due_at, "by": a.owner.username,
+            "summary": f"{a.type.name}: {a.subject}" + (f" — {a.outcome}" if a.outcome else ""),
+        })
+    for n in person.notes.select_related("author"):
+        events.append({"kind": "note", "at": n.created_at,
+                       "by": n.author.username if n.author else None, "summary": n.body})
+    for d in person.deals.select_related("stage"):
+        events.append({"kind": f"deal_{d.status}", "at": d.created_at, "by": None,
+                       "deal_id": d.id,
+                       "summary": f"Deal: {d.title} ({d.status}, {d.stage.name})"})
+    return sorted(events, key=lambda e: (e["at"] is None, e["at"]), reverse=True)

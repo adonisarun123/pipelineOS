@@ -151,3 +151,56 @@ class AuditLogSerializer(serializers.ModelSerializer):
         model = AuditLog
         fields = ["id", "actor", "actor_name", "action", "model_name", "object_id",
                   "detail", "ip", "created_at"]
+
+
+class PersonPhoneSerializer(serializers.ModelSerializer):
+    class Meta:
+        from crm.models import PersonPhone
+
+        model = PersonPhone
+        fields = ["id", "label", "raw", "normalized"]
+
+
+class PersonEmailSerializer(serializers.ModelSerializer):
+    class Meta:
+        from crm.models import PersonEmail
+
+        model = PersonEmail
+        fields = ["id", "label", "email"]
+
+
+class PersonDetailSerializer(PersonSerializer):
+    phones = PersonPhoneSerializer(many=True, read_only=True)
+    emails = PersonEmailSerializer(many=True, read_only=True)
+    organization_name = serializers.CharField(source="organization.name",
+                                              read_only=True, default=None)
+    owner_name = serializers.CharField(source="owner.username", read_only=True, default=None)
+
+    class Meta(PersonSerializer.Meta):
+        fields = PersonSerializer.Meta.fields + ["phones", "emails",
+                                                 "organization_name", "owner_name"]
+
+
+class SavedViewSerializer(serializers.ModelSerializer):
+    owner_name = serializers.CharField(source="owner.username", read_only=True)
+
+    class Meta:
+        from crm.models import SavedView
+
+        model = SavedView
+        fields = ["id", "name", "entity", "owner", "owner_name", "params", "columns",
+                  "sort", "is_shared", "is_pinned"]
+        read_only_fields = ["owner"]
+
+
+class UserSerializer(serializers.ModelSerializer):
+    from accounts.models import User as _User
+
+    team_name = serializers.CharField(source="team.name", read_only=True, default=None)
+
+    class Meta:
+        from accounts.models import User
+
+        model = User
+        fields = ["id", "username", "email", "role", "team", "team_name", "is_active"]
+        read_only_fields = ["username", "is_active"]

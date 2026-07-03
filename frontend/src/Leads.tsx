@@ -18,6 +18,20 @@ export default function Leads() {
   const [dupes, setDupes] = useState<Dupes | null>(null);
   const [converting, setConverting] = useState<Lead | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const [views, setViews] = useState<{ id: number; name: string; params: { status?: string } }[]>([]);
+
+  const loadViews = () =>
+    void api<{ id: number; name: string; params: { status?: string } }[]>(
+      "/saved-views/?entity=lead").then(setViews);
+
+  const saveView = async () => {
+    const name = prompt("Save current filter as (name):");
+    if (!name) return;
+    const shared = confirm("Share this view with your team?");
+    await api("/saved-views/", { method: "POST",
+      body: { name, entity: "lead", params: { status: filter }, is_shared: shared } });
+    loadViews();
+  };
 
   const load = useCallback(async () => {
     if (filter === "open") {
@@ -35,6 +49,7 @@ export default function Leads() {
     void api<LeadSource[]>("/lead-sources/").then(setSources);
     void api<LostReason[]>("/lost-reasons/").then(setReasons);
     void api<Paginated<Pipeline>>("/pipelines/").then((d) => setPipelines(d.results));
+    loadViews();
   }, []);
 
   const checkDupes = async (phone: string, email: string) => {
@@ -124,6 +139,16 @@ export default function Leads() {
           <option value="disqualified">Disqualified</option>
         </select>
         <span style={{ color: "var(--muted)" }}>{leads.length} leads</span>
+        {views.length > 0 && (
+          <select defaultValue="" onChange={(e) => {
+            const v = views.find((x) => x.id === Number(e.target.value));
+            if (v) setFilter(v.params.status ?? "open");
+          }}>
+            <option value="" disabled>Saved views…</option>
+            {views.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+          </select>
+        )}
+        <button className="ghost" onClick={() => void saveView()}>Save view</button>
       </div>
       <table className="leads">
         <thead>

@@ -1,15 +1,17 @@
 import { useState } from "react";
 import Activities from "./Activities";
 import { getAuth, setAuth } from "./api";
+import Contacts from "./Contacts";
 import DealDetail from "./DealDetail";
 import ImportWizard from "./ImportWizard";
 import Kanban from "./Kanban";
 import Leads from "./Leads";
 import Login from "./Login";
 import SearchBox from "./SearchBox";
+import Team from "./Team";
 import type { Auth } from "./types";
 
-type View = "activities" | "pipeline" | "leads" | "import";
+type View = "activities" | "pipeline" | "leads" | "contacts" | "import" | "team";
 
 export default function App() {
   const [auth, setAuthState] = useState<Auth | null>(getAuth());
@@ -34,9 +36,17 @@ export default function App() {
           <a className={view === "leads" ? "active" : ""} onClick={() => setView("leads")}>
             Leads
           </a>
+          <a className={view === "contacts" ? "active" : ""} onClick={() => setView("contacts")}>
+            Contacts
+          </a>
           {(auth.role === "admin" || auth.role === "manager") && (
             <a className={view === "import" ? "active" : ""} onClick={() => setView("import")}>
               Import
+            </a>
+          )}
+          {auth.role === "admin" && (
+            <a className={view === "team" ? "active" : ""} onClick={() => setView("team")}>
+              Team
             </a>
           )}
         </nav>
@@ -51,7 +61,9 @@ export default function App() {
       {view === "activities" && <Activities />}
       {view === "pipeline" && <Kanban />}
       {view === "leads" && <Leads />}
+      {view === "contacts" && <Contacts />}
       {view === "import" && <ImportWizard />}
+      {view === "team" && <Team selfId={auth.user_id} />}
       {searchDeal !== null && (
         <DealDetail dealId={searchDeal} onClose={() => setSearchDeal(null)}
           onChanged={() => undefined} />

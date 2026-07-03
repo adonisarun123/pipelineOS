@@ -16,6 +16,7 @@ class AuditLog(TenantModel):
         LOGIN = "login"
         CONVERT = "convert"
         IMPORT = "import"
+        TRANSFER = "transfer"
 
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, null=True,
                               on_delete=models.SET_NULL, related_name="+")

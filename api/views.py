@@ -252,20 +252,56 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     serializer_class = OrganizationSerializer
 
     def get_queryset(self):
-        return Organization.objects.all()
+        qs = Organization.objects.all()
+        q = self.request.query_params.get("q")
+        return qs.filter(name__icontains=q) if q else qs
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
 
 
 class PersonViewSet(viewsets.ModelViewSet):
-    serializer_class = PersonSerializer
+    def get_serializer_class(self):
+        from .serializers import PersonDetailSerializer
+
+        return PersonDetailSerializer
 
     def get_queryset(self):
-        return Person.objects.all()
+        qs = (Person.objects.select_related("organization", "owner")
+              .prefetch_related("phones", "emails"))
+        q = self.request.query_params.get("q")
+        if q:
+            from django.db.models import Q as _Q
+
+            qs = qs.filter(_Q(first_name__icontains=q) | _Q(last_name__icontains=q)
+                           | _Q(organization__name__icontains=q))
+        return qs
 
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+        from crm.models import PersonEmail, PersonPhone
+
+        person = serializer.save(created_by=self.request.user,
+                                 owner=serializer.validated_data.get("owner")
+                                 or self.request.user)
+        phone = self.request.data.get("phone")
+        email = self.request.data.get("email")
+        if phone:
+            PersonPhone(person=person, raw=phone,
+                        normalized=services.normalize_phone(phone),
+                        created_by=self.request.user).save()
+        if email:
+            PersonEmail(person=person, email=email, created_by=self.request.user).save()
+
+    @action(detail=True, methods=["get"])
+    def timeline(self, request, pk=None):
+        """C-4 for people."""
+        from .serializers import PersonDetailSerializer
+
+        person = self.get_object()
+        events = services.person_timeline(person)
+        for e in events:
+            e["at"] = e["at"].isoformat() if e["at"] else None
+        return Response({"person": PersonDetailSerializer(person).data, "events": events})
 
 
 class LostReasonViewSet(viewsets.ReadOnlyModelViewSet):
@@ -301,7 +337,7 @@ class LeadViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["get"])
     def duplicates(self, request):
         """L-5: check before save. ?phone=&email=&org_name="""
-        from .serializers import LeadSerializer, PersonSerializer
+        from .serializers import LeadSerializer
 
         d = services.find_lead_duplicates(
             phone=request.query_params.get("phone", ""),
@@ -386,7 +422,7 @@ class SearchView(APIView):
     """S-1: global search."""
 
     def get(self, request):
-        from .serializers import DealSerializer, LeadSerializer, OrganizationSerializer, PersonSerializer
+        from .serializers import DealSerializer, LeadSerializer, OrganizationSerializer
 
         r = services.global_search(request.user, request.query_params.get("q", ""))
         return Response({
@@ -480,3 +516,89 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         qs = AuditLog.objects.select_related("actor")
         action_f = self.request.query_params.get("action")
         return qs.filter(action=action_f) if action_f else qs
+
+
+class SavedViewViewSet(viewsets.ModelViewSet):
+    """S-3: private or shared-with-team views."""
+
+    pagination_class = None
+
+    def get_serializer_class(self):
+        from .serializers import SavedViewSerializer
+
+        return SavedViewSerializer
+
+    def get_queryset(self):
+        from django.db.models import Q as _Q
+
+        from crm.models import SavedView
+
+        u = self.request.user
+        qs = SavedView.objects.filter(_Q(owner=u) | _Q(is_shared=True))
+        entity = self.request.query_params.get("entity")
+        return qs.filter(entity=entity) if entity else qs
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user, created_by=self.request.user)
+
+    def perform_update(self, serializer):
+        if serializer.instance.owner_id != self.request.user.id \
+                and not self.request.user.is_admin_role:
+            self.permission_denied(self.request, message="Not your view.")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if instance.owner_id != self.request.user.id and not self.request.user.is_admin_role:
+            self.permission_denied(self.request, message="Not your view.")
+        instance.is_deleted = True
+        instance.save(update_fields=["is_deleted", "updated_at"])
+
+
+class UserViewSet(viewsets.ReadOnlyModelViewSet):
+    """Tenant user directory + U-3 admin actions."""
+
+    pagination_class = None
+
+    def get_serializer_class(self):
+        from .serializers import UserSerializer
+
+        return UserSerializer
+
+    def get_queryset(self):
+        from accounts.models import User
+
+        return (User.objects.filter(tenant_id=self.request.user.tenant_id)
+                .select_related("team").order_by("username"))
+
+    def _require_admin(self, request):
+        if not request.user.is_admin_role:
+            self.permission_denied(request, message="Admin role required.")
+
+    @action(detail=True, methods=["post"])
+    def transfer(self, request, pk=None):
+        """U-3: bulk reassign all records to another user. Audit-logged."""
+        from crm import audit
+
+        self._require_admin(request)
+        source = self.get_object()
+        target = get_object_or_404(self.get_queryset(), pk=request.data.get("to_user_id"))
+        counts = services.transfer_records(from_user=source, to_user=target,
+                                           actor=request.user)
+        audit.log(actor=request.user, action="transfer", model_name="user",
+                  object_id=source.id,
+                  detail={"to_user": target.username, "counts": counts}, request=request)
+        return Response({"transferred": counts, "to_user": target.username})
+
+    @action(detail=True, methods=["post"])
+    def deactivate(self, request, pk=None):
+        """U-3: instant deactivation — kills sessions and API tokens."""
+        from crm import audit
+
+        self._require_admin(request)
+        user = self.get_object()
+        if user.id == request.user.id:
+            return Response({"detail": "Cannot deactivate yourself."}, status=400)
+        user.deactivate()
+        audit.log(actor=request.user, action="update", model_name="user",
+                  object_id=user.id, detail={"deactivated": True}, request=request)
+        return Response({"deactivated": user.username})
