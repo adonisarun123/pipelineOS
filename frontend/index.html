@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PipelineOS</title>
+<style>
+  :root { --bg:#f4f5f7; --card:#fff; --ink:#172b4d; --muted:#6b778c; --accent:#0052cc;
+          --rot:#de350b; --warn:#ff8b00; --ok:#00875a; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.4 -apple-system,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { display:flex; align-items:center; gap:16px; padding:10px 20px; background:#fff; border-bottom:1px solid #dfe1e6; }
+  header h1 { font-size:18px; margin:0; color:var(--accent); }
+  select,input,button { font:inherit; padding:6px 10px; border:1px solid #dfe1e6; border-radius:4px; }
+  button { background:var(--accent); color:#fff; border:none; cursor:pointer; }
+  button.ghost { background:#fff; color:var(--ink); border:1px solid #dfe1e6; }
+  .board { display:flex; gap:12px; padding:16px 20px; overflow-x:auto; align-items:flex-start; min-height:80vh; }
+  .col { background:#ebecf0; border-radius:8px; min-width:270px; width:270px; padding:8px; }
+  .col h3 { font-size:13px; margin:4px 6px 2px; }
+  .col .meta { font-size:12px; color:var(--muted); margin:0 6px 8px; }
+  .col.dragover { outline:2px dashed var(--accent); }
+  .deal { background:var(--card); border-radius:6px; padding:8px 10px; margin-bottom:8px;
+          box-shadow:0 1px 1px rgba(9,30,66,.25); cursor:grab; border-left:4px solid transparent; }
+  .deal.rotten { border-left-color:var(--rot); }
+  .deal .t { font-weight:600; }
+  .deal .sub { font-size:12px; color:var(--muted); display:flex; justify-content:space-between; margin-top:4px; }
+  .badge { font-size:11px; color:var(--warn); }
+  .login { max-width:340px; margin:12vh auto; background:#fff; padding:24px; border-radius:8px;
+           box-shadow:0 4px 12px rgba(9,30,66,.15); display:flex; flex-direction:column; gap:10px; }
+  .err { color:var(--rot); font-size:13px; min-height:1em; }
+  .quickadd { display:flex; gap:8px; padding:0 20px; }
+  dialog { border:none; border-radius:8px; padding:20px; box-shadow:0 8px 24px rgba(9,30,66,.3); }
+  dialog form { display:flex; flex-direction:column; gap:10px; min-width:280px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="module">
+import React, { useState, useEffect, useCallback } from "https://esm.sh/react@18";
+import { createRoot } from "https://esm.sh/react-dom@18/client";
+import htm from "https://esm.sh/htm";
+const html = htm.bind(React.createElement);
+const API = "/api/v1";
+
+async function api(path, { method = "GET", body, token } = {}) {
+  const r = await fetch(`${API}${path}`, {
+    method,
+    headers: { "Content-Type": "application/json", ...(token && { Authorization: `Token ${token}` }) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!r.ok) throw Object.assign(new Error(`HTTP ${r.status}`), { status: r.status, body: await r.text() });
+  return r.json();
+}
+
+function Login({ onAuth }) {
+  const [err, setErr] = useState("");
+  const submit = async (e) => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    try {
+      const d = await api("/auth/login/", { method: "POST",
+        body: { username: f.get("u"), password: f.get("p") } });
+      onAuth(d);
+    } catch { setErr("Invalid credentials"); }
+  };
+  return html`<form class="login" onSubmit=${submit}>
+    <h1>PipelineOS</h1>
+    <input name="u" placeholder="Username" autoFocus required />
+    <input name="p" type="password" placeholder="Password" required />
+    <div class="err">${err}</div>
+    <button>Sign in</button>
+  </form>`;
+}
+
+function DealCard({ deal, onDragStart, onWon, onLost }) {
+  const fmt = (v) => `₹${Number(v).toLocaleString("en-IN")}`;
+  return html`<div class="deal ${deal.is_rotten ? "rotten" : ""}" draggable="true"
+      onDragStart=${(e) => onDragStart(e, deal)} title=${deal.is_rotten ? "Rotting: no recent activity" : ""}>
+    <div class="t">${deal.title}</div>
+    <div class="sub"><span>${deal.organization_name || "—"}</span><span>${fmt(deal.value)}</span></div>
+    <div class="sub"><span>${deal.owner_name}</span>
+      <span>${deal.needs_next_activity ? html`<span class="badge">⚠ no next activity</span>` : ""}
+        <a href="#" onClick=${(e) => { e.preventDefault(); onWon(deal); }} style=${{color:"var(--ok)"}}> ✓</a>
+        <a href="#" onClick=${(e) => { e.preventDefault(); onLost(deal); }} style=${{color:"var(--rot)"}}> ✗</a>
+      </span></div>
+  </div>`;
+}
+
+function Board({ token }) {
+  const [pipelines, setPipelines] = useState([]);
+  const [pid, setPid] = useState(null);
+  const [board, setBoard] = useState(null);
+  const [reasons, setReasons] = useState([]);
+  const [err, setErr] = useState("");
+
+  const load = useCallback(async (p) => {
+    if (!p) return;
+    setBoard(await api(`/pipelines/${p}/kanban/`, { token }));
+  }, [token]);
+
+  useEffect(() => {
+    api("/pipelines/", { token }).then((d) => {
+      setPipelines(d.results);
+      if (d.results.length) { setPid(d.results[0].id); load(d.results[0].id); }
+    });
+    api("/lost-reasons/", { token }).then(setReasons);
+  }, [token, load]);
+
+  const onDragStart = (e, deal) => e.dataTransfer.setData("text/plain", deal.id);
+  const onDrop = async (e, stageId) => {
+    e.preventDefault(); e.currentTarget.classList.remove("dragover");
+    const dealId = e.dataTransfer.getData("text/plain");
+    try { await api(`/deals/${dealId}/move/`, { method: "POST", token, body: { stage_id: stageId } }); }
+    catch (ex) { setErr(`Move failed (${ex.status})`); }
+    load(pid);
+  };
+  const onWon = async (deal) => {
+    if (!confirm(`Mark "${deal.title}" as WON?`)) return;
+    await api(`/deals/${deal.id}/won/`, { method: "POST", token }); load(pid);
+  };
+  const onLost = async (deal) => {
+    const labels = reasons.map((r, i) => `${i + 1}. ${r.label}`).join("\n");
+    const pick = prompt(`Lost reason (required):\n${labels}\nEnter number:`);
+    const reason = reasons[Number(pick) - 1];
+    if (!reason) return;
+    await api(`/deals/${deal.id}/lost/`, { method: "POST", token, body: { lost_reason_id: reason.id } });
+    load(pid);
+  };
+  const quickAdd = async (e) => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    if (!f.get("title")) return;
+    await api("/deals/", { method: "POST", token,
+      body: { title: f.get("title"), value: f.get("value") || "0", pipeline: pid } });
+    e.target.reset(); load(pid);
+  };
+  const fmt = (v) => `₹${Number(v).toLocaleString("en-IN")}`;
+
+  return html`<div>
+    <header>
+      <h1>PipelineOS</h1>
+      <select value=${pid ?? ""} onChange=${(e) => { setPid(+e.target.value); load(+e.target.value); }}>
+        ${pipelines.map((p) => html`<option key=${p.id} value=${p.id}>${p.name}</option>`)}
+      </select>
+      <span class="err">${err}</span>
+      <span style=${{marginLeft:"auto"}}>
+        <button class="ghost" onClick=${() => { localStorage.clear(); location.reload(); }}>Sign out</button>
+      </span>
+    </header>
+    <form class="quickadd" onSubmit=${quickAdd} style=${{margin:"12px 0 0"}}>
+      <input name="title" placeholder="New deal title…" style=${{flex:1}} />
+      <input name="value" type="number" placeholder="Value (INR)" />
+      <button>Add deal</button>
+    </form>
+    <div class="board">
+      ${board && board.columns.map((c) => html`
+        <div key=${c.stage.id} class="col"
+             onDragOver=${(e) => { e.preventDefault(); e.currentTarget.classList.add("dragover"); }}
+             onDragLeave=${(e) => e.currentTarget.classList.remove("dragover")}
+             onDrop=${(e) => onDrop(e, c.stage.id)}>
+          <h3>${c.stage.name}</h3>
+          <p class="meta">${c.count} deals · ${fmt(c.total_value)}${c.stage.rot_days ? ` · rot ${c.stage.rot_days}d` : ""}</p>
+          ${c.deals.map((d) => html`<${DealCard} key=${d.id} deal=${d}
+              onDragStart=${onDragStart} onWon=${onWon} onLost=${onLost} />`)}
+        </div>`)}
+    </div>
+  </div>`;
+}
+
+function App() {
+  const [auth, setAuth] = useState(() => JSON.parse(localStorage.getItem("auth") || "null"));
+  const onAuth = (d) => { localStorage.setItem("auth", JSON.stringify(d)); setAuth(d); };
+  return auth ? html`<${Board} token=${auth.token} />` : html`<${Login} onAuth=${onAuth} />`;
+}
+
+createRoot(document.getElementById("root")).render(html`<${App} />`);
+</script>
+</body>
+</html>
