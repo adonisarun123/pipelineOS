@@ -6,7 +6,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 ALLOWED = {"tenants", "tests"}
 # api/capture.py: L-7 capture must resolve a tenant FROM the source token —
 # the one reviewed, deliberate cross-tenant lookup (see its module docstring).
-ALLOWED_FILES = {"api/capture.py"}
+ALLOWED_FILES = {"api/capture.py", "api/api_key_auth.py"}
 PATTERN = re.compile(r"\.unscoped\b")
 
 

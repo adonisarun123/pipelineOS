@@ -1041,3 +1041,58 @@ class ReportsView(APIView):
         if section == "sources":
             return Response(reports.source_roi(request.user, days))
         return Response({"detail": "Unknown report."}, status=404)
+
+
+class ApiKeyViewSet(viewsets.ViewSet):
+    """API-1: admin-managed keys; raw key returned exactly once."""
+
+    def _require_admin(self, request):
+        if not request.user.is_admin_role:
+            self.permission_denied(request, message="Only admins manage API keys.")
+
+    def list(self, request):
+        from crm.api_keys import ApiKey
+
+        self._require_admin(request)
+        keys = ApiKey.objects.select_related("acting_user").order_by("-id")
+        return Response([{
+            "id": k.id, "name": k.name, "prefix_hint": k.prefix_hint,
+            "scope": k.scope, "is_active": k.is_active,
+            "acting_user": k.acting_user.username,
+            "last_used_at": k.last_used_at, "created_at": k.created_at,
+        } for k in keys])
+
+    def create(self, request):
+        from crm.api_keys import ApiKey
+
+        self._require_admin(request)
+        name = (request.data.get("name") or "").strip()
+        if not name:
+            return Response({"detail": "name is required"}, status=400)
+        scope = request.data.get("scope", "read")
+        if scope not in ("read", "write"):
+            return Response({"detail": "scope must be read or write"}, status=400)
+        key, raw = ApiKey.generate(name=name, scope=scope,
+                                   acting_user=request.user, created_by=request.user)
+        from crm import audit
+
+        audit.log(actor=request.user, action="create", model_name="apikey",
+                  object_id=key.id, detail={"name": name, "scope": scope},
+                  request=request)
+        return Response({"id": key.id, "name": name, "scope": scope,
+                         "key": raw,  # shown once — never retrievable again
+                         "prefix_hint": key.prefix_hint}, status=201)
+
+    @action(detail=True, methods=["post"])
+    def revoke(self, request, pk=None):
+        from crm.api_keys import ApiKey
+
+        self._require_admin(request)
+        key = get_object_or_404(ApiKey, pk=pk)
+        key.is_active = False
+        key.save(update_fields=["is_active", "updated_at"])
+        from crm import audit
+
+        audit.log(actor=request.user, action="update", model_name="apikey",
+                  object_id=key.id, detail={"revoked": True}, request=request)
+        return Response({"revoked": key.name})

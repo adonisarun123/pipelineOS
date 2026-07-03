@@ -18,6 +18,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "rest_framework",
     "rest_framework.authtoken",
+    "drf_spectacular",
     "tenants",
     "accounts",
     "crm",
@@ -74,7 +75,10 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": ["api.auth.TenantTokenAuthentication"],
+    "DEFAULT_AUTHENTICATION_CLASSES": ["api.auth.TenantTokenAuthentication",
+                                       "api.api_key_auth.ApiKeyAuthentication"],
+    "DEFAULT_THROTTLE_CLASSES": ["api.api_key_auth.TenantRateThrottle"],
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
         "api.permissions.RoleWritePermission",

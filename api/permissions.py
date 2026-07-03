@@ -9,6 +9,11 @@ class RoleWritePermission(BasePermission):
     message = "Your role does not permit write operations."
 
     def has_permission(self, request, view) -> bool:
+        from .api_key_auth import ApiKeyScopePermission
+
+        if not ApiKeyScopePermission.allows(request):
+            self.message = "This API key is read-only."
+            return False
         if request.method in SAFE_METHODS:
             return True
         return request.user.is_authenticated and request.user.role != User.Role.READONLY

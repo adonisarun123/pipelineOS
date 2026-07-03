@@ -24,6 +24,7 @@ router.register("files", views.FileAttachmentViewSet, basename="file")
 router.register("webhooks", views.WebhookSubscriptionViewSet, basename="webhook")
 router.register("automations", views.AutomationRuleViewSet, basename="automation")
 router.register("automation-runs", views.AutomationRunViewSet, basename="automationrun")
+router.register("api-keys", views.ApiKeyViewSet, basename="apikey")
 router.register("lost-reasons", views.LostReasonViewSet, basename="lostreason")
 
 urlpatterns = [
@@ -33,4 +34,8 @@ urlpatterns = [
     path("email-account/", views.EmailAccountView.as_view(), name="email-account"),
     path("capture/<str:token>/", LeadCaptureView.as_view(), name="lead-capture"),
     path("reports/<str:section>/", views.ReportsView.as_view(), name="reports"),
+    path("schema/", __import__("drf_spectacular.views", fromlist=["SpectacularAPIView"])
+         .SpectacularAPIView.as_view(), name="schema"),
+    path("docs/", __import__("drf_spectacular.views", fromlist=["SpectacularSwaggerView"])
+         .SpectacularSwaggerView.as_view(url_name="schema"), name="docs"),
 ] + router.urls
