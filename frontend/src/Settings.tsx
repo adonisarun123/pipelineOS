@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, getAuth } from "./api";
+import { ConfirmDialog, toast } from "./ui";
 
 interface ApiKeyRow {
   id: number;
@@ -14,6 +15,7 @@ interface ApiKeyRow {
 function ApiKeys() {
   const [keys, setKeys] = useState<ApiKeyRow[]>([]);
   const [fresh, setFresh] = useState<string | null>(null);
+  const [revoking, setRevoking] = useState<ApiKeyRow | null>(null);
 
   const load = useCallback(async () => setKeys(await api<ApiKeyRow[]>("/api-keys/")), []);
   useEffect(() => { void load(); }, [load]);
@@ -28,11 +30,7 @@ function ApiKeys() {
     void load();
   };
 
-  const revoke = async (k: ApiKeyRow) => {
-    if (!confirm(`Revoke "${k.name}"? Integrations using it stop immediately.`)) return;
-    await api(`/api-keys/${k.id}/revoke/`, { method: "POST", body: {} });
-    void load();
-  };
+  const revoke = (k: ApiKeyRow) => setRevoking(k);
 
   return (
     <>
@@ -73,6 +71,17 @@ function ApiKeys() {
           ))}
         </tbody>
       </table>
+      {revoking && (
+        <ConfirmDialog title={`Revoke "${revoking.name}"?`} danger
+          body="Any integration using this key stops immediately. This cannot be undone — you'd create a new key instead."
+          confirmLabel="Revoke key"
+          onConfirm={async () => {
+            await api(`/api-keys/${revoking.id}/revoke/`, { method: "POST", body: {} });
+            toast.ok(`Key "${revoking.name}" revoked.`);
+            void load();
+          }}
+          onClose={() => setRevoking(null)} />
+      )}
     </>
   );
 }

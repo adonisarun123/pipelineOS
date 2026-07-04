@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "./api";
 import ScheduleDialog from "./ScheduleDialog";
+import { EmptyState, Skeleton, toast } from "./ui";
 
 interface MyActivity {
   id: number;
@@ -34,6 +35,7 @@ export default function Activities() {
     const r = await api<{ prompt_next: boolean }>(`/activities/${a.id}/complete/`, {
       method: "POST", body: { outcome },
     });
+    toast.ok(`${a.type_name} done${outcome ? ` — ${outcome.replace("_", " ")}` : ""}.`);
     if (r.prompt_next && a.deal !== null) {
       setScheduleFor({ id: a.deal, title: a.deal_title ?? "deal" }); // D-5 prompt
     }
@@ -44,7 +46,15 @@ export default function Activities() {
     new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short",
       hour: "2-digit", minute: "2-digit" });
 
-  if (!buckets) return <p style={{ padding: 20 }}>Loading…</p>;
+  if (!buckets) return <Skeleton rows={4} height={58} />;
+
+  const total = Object.values(buckets).reduce((n, b) => n + b.length, 0);
+  if (total === 0) {
+    return (
+      <EmptyState icon="✅" title="All clear — nothing due"
+        body="No overdue or scheduled activities. Check the Pipeline for deals flagged ⚠ without a next step, or work the Leads inbox." />
+    );
+  }
 
   return (
     <div style={{ padding: "0 20px" }}>

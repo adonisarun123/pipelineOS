@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PipelineOS — Hi-Fi Design Mockup</title>
+<style>
+:root{
+  --bg:#f4f5f7;--card:#fff;--ink:#172b4d;--muted:#6b778c;--accent:#0052cc;--accent2:#0065ff;
+  --rot:#de350b;--warn:#ff8b00;--ok:#00875a;--line:#dfe1e6;--soft:#ebecf0;
+  --shadow:0 1px 2px rgba(9,30,66,.18);--shadow-lg:0 8px 24px rgba(9,30,66,.22);
+}
+*{box-sizing:border-box;margin:0}
+body{font:14px/1.45 -apple-system,'Segoe UI',Roboto,sans-serif;background:#dfe3ea;color:var(--ink)}
+/* ── mockup chrome ── */
+.mock-picker{position:sticky;top:0;z-index:99;background:#091e42;color:#fff;padding:10px 18px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.mock-picker b{margin-right:10px;font-size:13px;letter-spacing:.4px}
+.mock-picker button{background:#243757;color:#c7d1e0;border:0;border-radius:14px;padding:5px 13px;font-size:12.5px;cursor:pointer}
+.mock-picker button.on{background:var(--accent2);color:#fff;font-weight:600}
+.frame{max-width:1280px;margin:22px auto 60px;background:var(--bg);border-radius:12px;overflow:hidden;box-shadow:var(--shadow-lg);min-height:760px}
+.screen{display:none}.screen.on{display:block}
+.note{background:#fffae6;border-left:4px solid var(--warn);margin:14px 22px;padding:8px 14px;font-size:12.5px;color:#7a5c00;border-radius:0 6px 6px 0}
+/* ── app header ── */
+header{display:flex;align-items:center;gap:18px;background:#fff;border-bottom:1px solid var(--line);padding:0 22px;height:56px}
+.logo{display:flex;align-items:center;gap:8px;font-weight:800;font-size:16px;color:var(--accent)}
+.logo svg{border-radius:7px}
+nav{display:flex;gap:2px}
+nav a{padding:18px 12px 15px;font-weight:600;font-size:13.5px;color:var(--muted);text-decoration:none;border-bottom:3px solid transparent;cursor:pointer}
+nav a.on{color:var(--accent);border-color:var(--accent)}
+.search{flex:1;max-width:360px;position:relative}
+.search input{width:100%;padding:8px 12px 8px 34px;border:1.5px solid var(--line);border-radius:8px;background:#fafbfc;font-size:13.5px}
+.search:before{content:"⌕";position:absolute;left:11px;top:6px;color:var(--muted);font-size:17px}
+.hright{margin-left:auto;display:flex;gap:14px;align-items:center;color:var(--muted);font-size:13px}
+.bell{position:relative;cursor:pointer;font-size:17px}
+.bell .dot{position:absolute;top:-6px;right:-9px;background:var(--rot);color:#fff;font-size:10.5px;font-weight:700;border-radius:9px;padding:1px 5px}
+.avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#0052cc,#00b8d9);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12.5px}
+/* ── shared bits ── */
+.pill{font-size:11px;font-weight:600;padding:2.5px 9px;border-radius:10px;background:var(--soft)}
+.pill.blue{background:#deebff;color:var(--accent)}.pill.green{background:#e3fcef;color:var(--ok)}
+.pill.red{background:#ffebe6;color:var(--rot)}.pill.amber{background:#fff0b3;color:#7a5c00}
+.btn{background:var(--accent);color:#fff;border:0;border-radius:7px;padding:8px 15px;font-weight:600;font-size:13px;cursor:pointer}
+.btn.ghost{background:#fff;color:var(--ink);border:1.5px solid var(--line)}
+.btn.danger{background:var(--rot)}
+.btn.sm{padding:4px 10px;font-size:12px}
+.toolbar{display:flex;gap:10px;align-items:center;padding:16px 22px 0;flex-wrap:wrap}
+select,input[type=text],input[type=date],input[type=number]{padding:7px 11px;border:1.5px solid var(--line);border-radius:7px;background:#fff;font-size:13px}
+table{border-collapse:collapse;width:calc(100% - 44px);margin:14px 22px;background:#fff;border-radius:10px;overflow:hidden;box-shadow:var(--shadow)}
+th{background:#fafbfc;font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);text-align:left;padding:10px 14px;border-bottom:2px solid var(--line)}
+td{padding:11px 14px;border-bottom:1px solid #f0f1f4;font-size:13.5px}
+tr:hover td{background:#fafbfd}
+h2.sec{padding:18px 22px 0;font-size:17px}
+.bar{display:inline-block;width:110px;height:9px;background:var(--soft);border-radius:5px;vertical-align:middle;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:5px}
+/* ── kanban ── */
+.summary{display:flex;gap:12px;padding:14px 22px 0;flex-wrap:wrap}
+.stat{background:#fff;border-radius:10px;box-shadow:var(--shadow);padding:10px 18px;min-width:128px}
+.stat .v{font-size:20px;font-weight:800}.stat .l{font-size:11.5px;color:var(--muted);letter-spacing:.3px}
+.stat.alert .v{color:var(--rot)}
+.board{display:flex;gap:14px;padding:16px 22px 26px;overflow-x:auto;align-items:flex-start}
+.col{background:var(--soft);border-radius:11px;min-width:252px;width:252px;padding:10px}
+.col h4{font-size:12.5px;letter-spacing:.3px;padding:2px 5px 1px}
+.col .cmeta{font-size:11.5px;color:var(--muted);padding:0 5px 9px}
+.deal{background:#fff;border-radius:8px;padding:10px 12px;margin-bottom:9px;box-shadow:var(--shadow);border-left:4px solid transparent;cursor:pointer}
+.deal:hover{box-shadow:0 3px 8px rgba(9,30,66,.25)}
+.deal.rot{border-left-color:var(--rot)}
+.deal .t{font-weight:650;font-size:13.5px}
+.deal .m{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:5px}
+.deal .flags{margin-top:6px;display:flex;gap:6px;align-items:center}
+.avatar.xs{width:20px;height:20px;font-size:9.5px}
+.nudge{margin:12px 22px 0;background:#fffae6;border:1.5px solid var(--warn);border-radius:8px;padding:9px 14px;font-size:13px}
+/* ── activities ── */
+.acts{padding:6px 22px 30px;max-width:880px}
+.acts h3{margin:20px 0 8px;font-size:14.5px;display:flex;gap:8px;align-items:center}
+.act{background:#fff;border-radius:9px;box-shadow:var(--shadow);padding:12px 15px;margin-bottom:9px;display:flex;justify-content:space-between;align-items:center;border-left:4px solid transparent}
+.act.over{border-left-color:var(--rot)}
+.act .sub{font-size:12px;color:var(--muted);margin-top:3px}
+.outs{display:flex;gap:6px}
+/* ── detail drawer ── */
+.stage-wrap{position:relative}
+.drawer{position:absolute;right:0;top:0;bottom:0;width:460px;background:#fff;box-shadow:-6px 0 22px rgba(9,30,66,.22);padding:20px 22px;overflow:auto;border-radius:0 0 12px 0}
+.drawer h3{font-size:17px}
+.dmeta{color:var(--muted);font-size:12.5px;margin:5px 0 13px}
+.prog{display:flex;gap:4px;margin:10px 0 16px}
+.prog i{flex:1;height:7px;border-radius:4px;background:var(--soft)}
+.prog i.done{background:var(--accent)}
+.dsec{font-size:12px;letter-spacing:.7px;text-transform:uppercase;color:var(--muted);margin:18px 0 8px;font-weight:700}
+.kv{display:grid;grid-template-columns:130px 1fr;gap:7px 10px;font-size:13px;align-items:center}
+.kv b{color:var(--muted);font-weight:500}
+.tl{border-left:2px solid var(--line);margin-left:7px;padding-left:16px}
+.tle{position:relative;padding-bottom:13px;font-size:13px}
+.tle:before{content:"";position:absolute;left:-21.5px;top:4px;width:9px;height:9px;border-radius:50%;background:var(--accent);border:2px solid #fff}
+.tle.won:before{background:var(--ok)}
+.tle small{display:block;color:var(--muted);font-size:11.5px;margin-top:1px}
+.li-row{display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px dashed var(--line)}
+/* ── login ── */
+.loginbg{min-height:760px;display:flex;align-items:center;justify-content:center;background:linear-gradient(140deg,#0747a6 0%,#0052cc 45%,#00b8d9 130%)}
+.logincard{background:#fff;border-radius:14px;padding:34px 36px;width:390px;box-shadow:var(--shadow-lg)}
+.logincard h1{font-size:22px;margin-bottom:4px}
+.logincard p.tag{color:var(--muted);font-size:13px;margin-bottom:22px}
+.logincard input{width:100%;margin-bottom:11px;padding:11px 13px;border:1.5px solid var(--line);border-radius:8px;font-size:14px}
+.logincard .btn{width:100%;padding:11px;font-size:14.5px;margin-top:4px}
+.switch{display:block;text-align:center;margin-top:15px;font-size:13px;color:var(--accent);cursor:pointer}
+/* ── notif dropdown ── */
+.ndrop{position:absolute;right:150px;top:54px;width:330px;background:#fff;border-radius:10px;box-shadow:var(--shadow-lg);z-index:50;overflow:hidden}
+.ndrop .nh{display:flex;justify-content:space-between;padding:11px 15px;border-bottom:1px solid var(--line);font-size:13px}
+.nitem{padding:10px 15px;border-bottom:1px solid #f0f1f4;font-size:13px}
+.nitem.unread{background:#deebff55}
+.nitem small{color:var(--muted);font-size:11.5px}
+/* reports */
+.rgrid{display:grid;grid-template-columns:1fr 1fr;gap:0 22px}
+@media(max-width:900px){.rgrid{grid-template-columns:1fr}}
+/* settings */
+.card{background:#fff;border-radius:11px;box-shadow:var(--shadow);margin:14px 22px;padding:18px 22px}
+.card h3{font-size:15px;margin-bottom:6px}
+.card p.d{color:var(--muted);font-size:13px;margin-bottom:12px}
+code{background:var(--soft);border-radius:5px;padding:2px 7px;font-size:12px}
+.keyonce{background:#e3fcef;border:1.5px solid var(--ok);border-radius:8px;padding:10px 14px;font-size:12.5px;margin:10px 0;word-break:break-all}
+/* automations */
+.rule-actions div{font-size:12.5px;padding:1.5px 0}
+footer.mock{max-width:1280px;margin:0 auto 40px;color:#5d6b82;font-size:12.5px;padding:0 6px}
+</style>
+</head>
+<body>
+
+<div class="mock-picker">
+  <b>PIPELINEOS · HI-FI MOCKUP</b>
+  <button data-s="login">1 · Sign in / Signup</button>
+  <button data-s="acts" class="on">2 · My Activities</button>
+  <button data-s="board">3 · Pipeline</button>
+  <button data-s="detail">4 · Deal Detail</button>
+  <button data-s="leads">5 · Leads Inbox</button>
+  <button data-s="contacts">6 · Contacts</button>
+  <button data-s="reports">7 · Reports</button>
+  <button data-s="autom">8 · Automations</button>
+  <button data-s="team">9 · Team</button>
+  <button data-s="settings">10 · Settings</button>
+</div>
+
+<div class="frame">
+
+<!-- ══ 1 LOGIN ══ -->
+<section class="screen" id="s-login">
+  <div class="loginbg">
+    <div class="logincard">
+      <div class="logo" style="margin-bottom:18px">
+        <svg width="30" height="30" viewBox="0 0 96 96"><rect width="96" height="96" rx="20" fill="#0052cc"/><rect x="14" y="22" width="18" height="52" rx="4" fill="#fff" opacity=".95"/><rect x="39" y="34" width="18" height="40" rx="4" fill="#fff" opacity=".75"/><rect x="64" y="46" width="18" height="28" rx="4" fill="#fff" opacity=".55"/></svg>
+        PipelineOS
+      </div>
+      <h1>Welcome back</h1>
+      <p class="tag">Deals move in WhatsApp. So do we.</p>
+      <input type="text" placeholder="Username" value="rep1">
+      <input type="text" placeholder="Password" value="••••••••••••">
+      <button class="btn">Sign in</button>
+      <span class="switch">New here? Create a workspace — 14-day free trial</span>
+    </div>
+  </div>
+</section>
+
+<!-- ══ header template used on app screens (repeated per screen for nav-state) ══ -->
+
+<!-- ══ 2 MY ACTIVITIES ══ -->
+<section class="screen on" id="s-acts">
+  <header>
+    <span class="logo"><svg width="24" height="24" viewBox="0 0 96 96"><rect width="96" height="96" rx="20" fill="#0052cc"/><rect x="14" y="22" width="18" height="52" rx="4" fill="#fff" opacity=".95"/><rect x="39" y="34" width="18" height="40" rx="4" fill="#fff" opacity=".75"/><rect x="64" y="46" width="18" height="28" rx="4" fill="#fff" opacity=".55"/></svg>PipelineOS</span>
+    <nav><a class="on">My Activities</a><a>Pipeline</a><a>Leads</a><a>Contacts</a><a>Reports</a><a>Import</a><a>Automations</a><a>Team</a></nav>
+    <span class="search"><input placeholder="Search ( / ) — deals, people, phone…"></span>
+    <span class="hright"><span class="bell">🔔<span class="dot">3</span></span><span>⚙</span><span class="avatar">R1</span></span>
+  </header>
+  <div class="ndrop">
+    <div class="nh"><b>Notifications</b><a style="color:var(--accent);font-size:12px">Mark all read</a></div>
+    <div class="nitem unread">👤 Deal assigned to you: Razorpay offsite<br><small>by manager · 09:12</small></div>
+    <div class="nitem unread">⏰ SLA breached: lead “Neha Gupta” awaiting first response<br><small>08:45</small></div>
+    <div class="nitem unread">ℹ️ New lead — call within 15 min<br><small>08:30</small></div>
+    <div class="nitem">🥀 Deal rotting: TCS hackathon event<br><small>yesterday</small></div>
+  </div>
+  <div class="acts">
+    <h3 style="color:var(--rot)">Overdue <span class="pill red">2</span></h3>
+    <div class="act over"><div><b>📞 Call: Follow up on proposal</b><div class="sub">Deal: Wipro leadership retreat · due yesterday 15:00</div></div>
+      <span class="outs"><button class="btn ghost sm">connected</button><button class="btn ghost sm">no answer</button><button class="btn ghost sm">busy</button></span></div>
+    <div class="act over"><div><b>📞 Call: First response call (SLA)</b><div class="sub">Lead: Neha Gupta · due today 08:45 · <span class="pill red">SLA breached</span></div></div>
+      <span class="outs"><button class="btn ghost sm">connected</button><button class="btn ghost sm">no answer</button></span></div>
+    <h3>Today <span class="pill blue">3</span></h3>
+    <div class="act"><div><b>🤝 Meeting: Venue walkthrough — Coorg resort</b><div class="sub">Deal: Infosys offsite — Coorg · 14:30 · 90 min</div></div><button class="btn ghost sm">Done ✓</button></div>
+    <div class="act"><div><b>💬 WhatsApp follow-up: Share menu options</b><div class="sub">Deal: Zerodha annual day · 16:00</div></div><button class="btn ghost sm">Done ✓</button></div>
+    <div class="act"><div><b>📞 Call: Razorpay — confirm headcount</b><div class="sub">Deal: Razorpay offsite · 17:30</div></div>
+      <span class="outs"><button class="btn ghost sm">connected</button><button class="btn ghost sm">no answer</button></span></div>
+    <h3 style="color:var(--muted)">This week <span class="pill">4</span> &nbsp;·&nbsp; Planned <span class="pill">7</span></h3>
+    <div class="note">D-5 in action: completing the last open activity on a deal immediately opens the “Schedule next activity” dialog — prompt, never block.</div>
+  </div>
+</section>
+
+<!-- ══ 3 PIPELINE BOARD ══ -->
+<section class="screen" id="s-board">
+  <header>
+    <span class="logo"><svg width="24" height="24" viewBox="0 0 96 96"><rect width="96" height="96" rx="20" fill="#0052cc"/><rect x="14" y="22" width="18" height="52" rx="4" fill="#fff" opacity=".95"/><rect x="39" y="34" width="18" height="40" rx="4" fill="#fff" opacity=".75"/><rect x="64" y="46" width="18" height="28" rx="4" fill="#fff" opacity=".55"/></svg>PipelineOS</span>
+    <nav><a>My Activities</a><a class="on">Pipeline</a><a>Leads</a><a>Contacts</a><a>Reports</a><a>Import</a><a>Automations</a><a>Team</a></nav>
+    <span class="search"><input placeholder="Search ( / )"></span>
+    <span class="hright"><span class="bell">🔔<span class="dot">3</span></span><span>⚙</span><span class="avatar">MG</span></span>
+  </header>
+  <div class="toolbar">
+    <select><option>Corporate Events IN</option><option>International</option><option>Kids' Outbound</option></select>
+    <label style="font-size:13px;color:var(--muted)"><input type="checkbox"> My deals only</label>
+    <button class="btn ghost sm">Export CSV</button>
+    <input type="text" placeholder="New deal title…" style="flex:1;max-width:260px"><input type="number" placeholder="Value ₹" style="width:110px"><button class="btn">Add deal</button>
+  </div>
+  <div class="summary">
+    <div class="stat"><div class="v">7</div><div class="l">OPEN DEALS</div></div>
+    <div class="stat"><div class="v">₹32.5L</div><div class="l">PIPELINE VALUE</div></div>
+    <div class="stat"><div class="v">₹11.2L</div><div class="l">WEIGHTED FORECAST</div></div>
+    <div class="stat alert"><div class="v">1 🥀</div><div class="l">ROTTING</div></div>
+    <div class="stat alert"><div class="v">2 ⚠</div><div class="l">NO NEXT STEP</div></div>
+    <div class="stat"><div class="v">3 / 1</div><div class="l">WON / LOST · JULY</div></div>
+  </div>
+  <div class="nudge">⚠ Before <b>Proposal Sent</b>, fill in: <b>Event Date, Headcount</b> on “Razorpay offsite” &nbsp;<a style="color:var(--accent)">open deal</a> · <a style="color:var(--muted)">dismiss</a></div>
+  <div class="board">
+    <div class="col"><h4>QUALIFIED</h4><div class="cmeta">2 deals · ₹7.5L · rot 7d</div>
+      <div class="deal"><div class="t">Infosys offsite — Coorg</div><div class="m"><span>Infosys</span><b>₹4,50,000</b></div><div class="flags"><span class="avatar xs">R1</span><span class="pill green">meeting today</span></div></div>
+      <div class="deal"><div class="t">Razorpay offsite</div><div class="m"><span>Razorpay</span><b>₹3,00,000</b></div><div class="flags"><span class="avatar xs">R1</span><span class="pill amber">⚠ no next activity</span></div></div>
+    </div>
+    <div class="col"><h4>CONTACT MADE</h4><div class="cmeta">2 deals · ₹14.5L · rot 7d</div>
+      <div class="deal rot"><div class="t">TCS hackathon event</div><div class="m"><span>TCS</span><b>₹2,50,000</b></div><div class="flags"><span class="avatar xs">R1</span><span class="pill red">🥀 10 days idle</span></div></div>
+      <div class="deal"><div class="t">Zerodha annual day</div><div class="m"><span>Zerodha</span><b>₹12,00,000</b></div><div class="flags"><span class="avatar xs">R2</span></div></div>
+    </div>
+    <div class="col"><h4>PROPOSAL SENT</h4><div class="cmeta">1 deal · ₹8L · rot 5d</div>
+      <div class="deal"><div class="t">Wipro leadership retreat</div><div class="m"><span>Wipro</span><b>₹8,00,000</b></div><div class="flags"><span class="avatar xs">R1</span><span class="pill amber">follow-up overdue</span></div></div>
+    </div>
+    <div class="col"><h4>NEGOTIATION</h4><div class="cmeta">2 deals · ₹5.5L · rot 5d</div>
+      <div class="deal"><div class="t">Freshworks team day</div><div class="m"><span>Freshworks</span><b>₹3,00,000</b></div><div class="flags"><span class="avatar xs">R2</span></div></div>
+      <div class="deal"><div class="t">Swiggy sales kickoff</div><div class="m"><span>Swiggy</span><b>₹2,50,000</b></div><div class="flags"><span class="avatar xs">R2</span><span class="pill green">✓ advance received</span></div></div>
+    </div>
+    <div class="col" style="background:#e3fcef66"><h4>BOOKING CONFIRMED 🎉</h4><div class="cmeta">this month: 3 · ₹9.5L</div>
+      <div class="deal" style="opacity:.85"><div class="t">Zomato monsoon offsite</div><div class="m"><span>Zomato</span><b>₹5,00,000</b></div><div class="flags"><span class="pill green">WON · onboarding task auto-created</span></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ 4 DEAL DETAIL ══ -->
+<section class="screen" id="s-detail">
+  <header>
+    <span class="logo"><svg width="24" height="24" viewBox="0 0 96 96"><rect width="96" height="96" rx="20" fill="#0052cc"/><rect x="14" y="22" width="18" height="52" rx="4" fill="#fff" opacity=".95"/><rect x="39" y="34" width="18" height="40" rx="4" fill="#fff" opacity=".75"/><rect x="64" y="46" width="18" height="28" rx="4" fill="#fff" opacity=".55"/></svg>PipelineOS</span>
+    <nav><a>My Activities</a><a class="on">Pipeline</a><a>Leads</a><a>Contacts</a><a>Reports</a></nav>
+    <span class="hright" style="margin-left:auto"><span class="avatar">R1</span></span>
+  </header>
+  <div class="stage-wrap" style="min-height:700px">
+    <div class="board" style="filter:blur(1.5px) grayscale(.4);opacity:.5;pointer-events:none">
+      <div class="col"><h4>QUALIFIED</h4><div class="deal"><div class="t">Infosys offsite — Coorg</div></div><div class="deal"><div class="t">Razorpay offsite</div></div></div>
+      <div class="col"><h4>CONTACT MADE</h4><div class="deal rot"><div class="t">TCS hackathon</div></div></div>
+      <div class="col"><h4>PROPOSAL SENT</h4><div class="deal"><div class="t">Wipro retreat</div></div></div>
+    </div>
+    <aside class="drawer">
+      <div style="display:flex;justify-content:space-between;align-items:start">
+        <div><h3>Infosys offsite — Coorg</h3>
+        <div class="dmeta">Infosys · <b style="color:var(--ink)">₹4,50,000</b> · owner rep1 · <span class="pill blue">open</span> · 12 days old</div></div>
+        <button class="btn ghost sm">Close ✕</button>
+      </div>
+      <div class="prog"><i class="done"></i><i class="done"></i><i></i><i></i><i></i></div>
+      <div style="display:flex;gap:8px"><button class="btn sm">+ Schedule activity</button><button class="btn ghost sm" style="color:var(--ok)">Mark won ✓</button><button class="btn ghost sm" style="color:var(--rot)">Lost ✗</button></div>
+
+      <div class="dsec">Details (custom fields)</div>
+      <div class="kv">
+        <b>Event Date ⚠</b><input type="date" value="2026-11-20">
+        <b>Headcount ⚠</b><input type="number" value="120">
+        <b>Venue Type</b><select><option>Resort</option><option>Office</option><option>Outdoor</option></select>
+        <b>Advance Received</b><input type="checkbox" checked>
+      </div>
+
+      <div class="dsec">Products &nbsp;<label style="font-weight:400;text-transform:none;letter-spacing:0"><input type="checkbox" checked> deal value = Σ items</label></div>
+      <div class="li-row"><span>Outbound Team Building — Full Day × 120</span><b>₹2,70,000</b></div>
+      <div class="li-row"><span>Resort Venue — Coorg (per head) × 120 (−10%)</span><b>₹1,50,000</b></div>
+      <div class="li-row"><span>Transport — AC Coach × 2</span><b>₹30,000</b></div>
+
+      <div class="dsec">Attachments</div>
+      <div style="font-size:13px">📎 <a style="color:var(--accent)">proposal-infosys-v2.pdf</a> <span style="color:var(--muted)">· 1.2 MB · rep1</span></div>
+
+      <div class="dsec">Timeline</div>
+      <div class="tl">
+        <div class="tle"><b>📝 Client wants adventure activities + bonfire night</b><small>today 10:12 · rep1</small></div>
+        <div class="tle"><b>☑ Call: Intro discussion — connected</b><small>yesterday 16:40 · rep1</small></div>
+        <div class="tle"><b>→ Stage: Qualified → Contact Made</b><small>yesterday 16:42 · rep1</small></div>
+        <div class="tle"><b>☐ Meeting: Venue walkthrough (planned)</b><small>today 14:30</small><div style="margin-top:4px"><button class="btn ghost sm">Done ✓</button></div></div>
+        <div class="tle"><b>✦ Deal created from lead “Priya Sharma” (Website)</b><small>24 Jun · source lineage kept</small></div>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<!-- ══ 5 LEADS ══ -->
+<section class="screen" id="s-leads">
+  <header>
+    <span class="logo"><svg width="24" height="24" viewBox="0 0 96 96"><rect width="96" height="96" rx="20" fill="#0052cc"/><rect x="14" y="22" width="18" height="52" rx="4" fill="#fff" opacity=".95"/><rect x="39" y="34" width="18" height="40" rx="4" fill="#fff" opacity=".75"/><rect x="64" y="46" width="18" height="28" rx="4" fill="#fff" opacity=".55"/></svg>PipelineOS</span>
+    <nav><a>My Activities</a><a>Pipeline</a><a class="on">Leads</a><a>Contacts</a><a>Reports</a><a>Import</a></nav>
+    <span class="search"><input placeholder="Search ( / )"></span>
+    <span class="hright"><span class="bell">🔔<span class="dot">3</span></span><span class="avatar">R1</span></span>
+  </header>
+  <div class="toolbar">
+    <input type="text" placeholder="Lead name *" style="flex:1;max-width:200px"><input type="text" placeholder="Organization"><input type="text" placeholder="Phone" value="98450 11223"><select><option>Source…</option><option>Website</option><option>Chatbot</option></select><button class="btn">Add lead</button>
+  </div>
+  <div class="nudge">⚠ Possible duplicates: lead “Priya Sharma” (Website), contact “Priya Sharma” — <a style="color:var(--accent)">review & merge</a></div>
+  <div class="toolbar">
+    <select><option>Open (new / attempted / contacted)</option><option>Qualified</option><option>Disqualified</option></select>
+    <span style="color:var(--muted);font-size:13px">5 leads</span>
+    <select><option>Saved views…</option><option>🔥 Hot inbound (shared)</option><option>My chatbot leads</option></select>
+    <button class="btn ghost sm">Save view</button>
+  </div>
+  <div class="nudge" style="background:#deebff;border-color:var(--accent)">📞 Log this call with <b>Amit Verma</b>? <button class="btn ghost sm">connected</button> <button class="btn ghost sm">no answer</button> <button class="btn ghost sm">busy</button> <button class="btn ghost sm">wrong number</button> <a style="color:var(--muted)">skip</a></div>
+  <table>
+    <thead><tr><th>Name</th><th>Organization</th><th>Phone</th><th>Source · SLA</th><th>Owner</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody>
+      <tr><td><b>Neha Gupta</b></td><td>—</td><td>📞 +91 97411 88990 💬</td><td>WhatsApp · <span class="pill red">SLA breached 2h</span></td><td>rep1</td><td><span class="pill blue">new</span></td><td><button class="btn ghost sm">Contacted</button> <button class="btn sm">Convert</button> <button class="btn danger sm">DQ</button></td></tr>
+      <tr><td><b>Amit Verma</b></td><td>Swiggy</td><td>📞 +91 99000 55667 💬</td><td>Chatbot · <span class="pill green">14 min left</span></td><td>rep2</td><td><span class="pill blue">new</span></td><td><button class="btn ghost sm">Contacted</button> <button class="btn sm">Convert</button> <button class="btn danger sm">DQ</button></td></tr>
+      <tr><td><b>Priya Sharma</b></td><td>Razorpay</td><td>📞 +91 98450 11223 💬</td><td>Website · 60m</td><td>rep1</td><td><span class="pill amber">contacted</span></td><td><button class="btn sm">Convert</button> <button class="btn danger sm">DQ</button></td></tr>
+      <tr><td>Kiran Rao</td><td>PhonePe</td><td>📞 +91 96322 10098 💬</td><td>IndiaMART · 30m</td><td>rep2</td><td><span class="pill amber">attempted</span></td><td><button class="btn sm">Convert</button> <button class="btn danger sm">DQ</button></td></tr>
+      <tr style="opacity:.6"><td>Sunil Menon</td><td>Acme Corp</td><td>📞 +91 98222 11000</td><td>Referral</td><td>rep1</td><td><span class="pill green">qualified → deal #6</span></td><td></td></tr>
+    </tbody>
+  </table>
+  <div class="note">L-7: leads also arrive automatically via <code>POST /api/v1/capture/&lt;source-token&gt;/</code> (Asha chatbot, website forms, ads) → round-robin assigned → SLA call task created — before any human touches them.</div>
+</section>
+
+<!-- ══ 6 CONTACTS ══ -->
+<section class="screen" id="s-contacts">
+  <header>
+    <span class="logo"><svg width="24" height="24" viewBox="0 0 96 96"><rect width="96" height="96" rx="20" fill="#0052cc"/><rect x="14" y="22" width="18" height="52" rx="4" fill="#fff" opacity=".95"/><rect x="39" y="34" width="18" height="40" rx="4" fill="#fff" opacity=".75"/><rect x="64" y="46" width="18" height="28" rx="4" fill="#fff" opacity=".55"/></svg>PipelineOS</span>
+    <nav><a>My Activities</a><a>Pipeline</a><a>Leads</a><a class="on">Contacts</a><a>Reports</a></nav>
+    <span class="search"><input placeholder="Search ( / )"></span>
+    <span class="hright"><span class="avatar">R1</span></span>
+  </header>
+  <div class="stage-wrap" style="min-height:640px">
+    <div class="toolbar"><select><option>People</option><option>Organizations</option></select><input type="text" placeholder="Filter…" style="width:240px"></div>
+    <table style="width:calc(100% - 500px)">
+      <thead><tr><th>Name</th><th>Title</th><th>Organization</th><th>Phone</th><th>Owner</th></tr></thead>
+      <tbody>
+        <tr style="background:#deebff44"><td><b>Priya Sharma</b></td><td>HR Head</td><td>Razorpay</td><td>📞 +91 98450 11223</td><td>rep1</td></tr>
+        <tr><td>Ravi Kumar</td><td>Admin Mgr</td><td>Infosys</td><td>📞 +91 98765 43210</td><td>rep1</td></tr>
+        <tr><td>Meena Iyer</td><td>L&D Lead</td><td>Wipro</td><td>📞 +91 98123 45678</td><td>rep1</td></tr>
+        <tr><td>Asha Nair</td><td>Founder's office</td><td>Zerodha</td><td>📞 +91 97411 22334</td><td>rep2</td></tr>
+      </tbody>
+    </table>
+    <aside class="drawer" style="width:430px">
+      <div style="display:flex;justify-content:space-between"><h3>Priya Sharma</h3><button class="btn ghost sm">Close ✕</button></div>
+      <div class="dmeta">HR Head · Razorpay<br>📞 <a style="color:var(--accent)">+91 98450 11223</a> 💬 · ✉ <a style="color:var(--accent)">priya@razorpay.com</a> · <span class="pill green">consent ✓</span></div>
+      <div class="dsec">Timeline</div>
+      <div class="tl">
+        <div class="tle"><b>💼 Deal: Razorpay offsite (open, Qualified)</b><small>2 Jul</small></div>
+        <div class="tle"><b>☑ Call: First response — connected</b><small>1 Jul 11:03 · rep1</small></div>
+        <div class="tle"><b>📝 Met at HR conclave; wants Nov offsite for 120 ppl</b><small>1 Jul · rep1</small></div>
+        <div class="tle"><b>✦ Contact created from lead (Website, utm: google/offsites)</b><small>1 Jul</small></div>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<!-- ══ 7 REPORTS ══ -->
+<section class="screen" id="s-reports">
+  <header>
+    <span class="logo"><svg width="24" height="24" viewBox="0 0 96 96"><rect width="96" height="96" rx="20" fill="#0052cc"/><rect x="14" y="22" width="18" height="52" rx="4" fill="#fff" opacity=".95"/><rect x="39" y="34" width="18" height="40" rx="4" fill="#fff" opacity=".75"/><rect x="64" y="46" width="18" height="28" rx="4" fill="#fff" opacity=".55"/></svg>PipelineOS</span>
+    <nav><a>My Activities</a><a>Pipeline</a><a>Leads</a><a>Contacts</a><a class="on">Reports</a></nav>
+    <span class="hright" style="margin-left:auto"><span class="avatar">MG</span></span>
+  </header>
+  <div class="toolbar"><select><option>Corporate Events IN</option></select><select><option>Last 90 days</option><option>Last 30 days</option></select></div>
+  <h2 class="sec">Conversion funnel <span style="font-size:12px;color:var(--muted);font-weight:400">· from stage history, cohort-correct</span></h2>
+  <table>
+    <thead><tr><th>Stage</th><th>Entered</th><th></th><th>→ next</th><th>Median days</th></tr></thead>
+    <tbody>
+      <tr><td>Qualified</td><td>24</td><td><span class="bar"><i style="width:100%"></i></span></td><td>62.5%</td><td>3.5</td></tr>
+      <tr><td>Contact Made</td><td>15</td><td><span class="bar"><i style="width:63%"></i></span></td><td>73.3%</td><td>4.0</td></tr>
+      <tr><td>Proposal Sent</td><td>11</td><td><span class="bar"><i style="width:46%"></i></span></td><td>54.5%</td><td>5.5</td></tr>
+      <tr><td>Negotiation</td><td>6</td><td><span class="bar"><i style="width:25%"></i></span></td><td>50.0%</td><td>2.0</td></tr>
+      <tr><td>Booking Confirmed</td><td>3</td><td><span class="bar"><i style="width:13%;background:var(--ok)"></i></span></td><td>—</td><td>—</td></tr>
+    </tbody>
+  </table>
+  <div class="rgrid">
+    <div><h2 class="sec">Activity by rep</h2>
+    <table style="width:calc(100% - 22px);margin-right:0">
+      <thead><tr><th>Rep</th><th>Done</th><th>Calls</th><th>Connect rate</th></tr></thead>
+      <tbody>
+        <tr><td>rep1</td><td>42</td><td>28</td><td><span class="bar"><i style="width:71%;background:var(--ok)"></i></span> 71%</td></tr>
+        <tr><td>rep2</td><td>37</td><td>31</td><td><span class="bar"><i style="width:58%;background:var(--ok)"></i></span> 58%</td></tr>
+      </tbody>
+    </table></div>
+    <div><h2 class="sec">Lost reasons (Pareto)</h2>
+    <table style="width:calc(100% - 22px);margin-left:0">
+      <thead><tr><th>Reason</th><th></th><th>#</th></tr></thead>
+      <tbody>
+        <tr><td>Budget</td><td><span class="bar"><i style="width:100%;background:var(--rot)"></i></span></td><td>5</td></tr>
+        <tr><td>Date conflict</td><td><span class="bar"><i style="width:60%;background:var(--rot)"></i></span></td><td>3</td></tr>
+        <tr><td>Competitor</td><td><span class="bar"><i style="width:40%;background:var(--rot)"></i></span></td><td>2</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+  <h2 class="sec">Lead source ROI</h2>
+  <table>
+    <thead><tr><th>Source</th><th>Leads</th><th>Qualified</th><th>Won</th><th>Revenue</th><th>Lead → win</th></tr></thead>
+    <tbody>
+      <tr><td>Website</td><td>38</td><td>14</td><td>5</td><td>₹18,50,000</td><td><span class="bar"><i style="width:13%;background:var(--ok)"></i></span> 13.2%</td></tr>
+      <tr><td>Chatbot (Asha)</td><td>52</td><td>11</td><td>3</td><td>₹6,20,000</td><td><span class="bar"><i style="width:6%;background:var(--ok)"></i></span> 5.8%</td></tr>
+      <tr><td>WhatsApp</td><td>21</td><td>9</td><td>4</td><td>₹11,00,000</td><td><span class="bar"><i style="width:19%;background:var(--ok)"></i></span> 19.0%</td></tr>
+      <tr><td>IndiaMART</td><td>17</td><td>3</td><td>1</td><td>₹2,50,000</td><td><span class="bar"><i style="width:6%;background:var(--ok)"></i></span> 5.9%</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ══ 8 AUTOMATIONS ══ -->
+<section class="screen" id="s-autom">
+  <header>
+    <span class="logo"><svg width="24" height="24" viewBox="0 0 96 96"><rect width="96" height="96" rx="20" fill="#0052cc"/><rect x="14" y="22" width="18" height="52" rx="4" fill="#fff" opacity=".95"/><rect x="39" y="34" width="18" height="40" rx="4" fill="#fff" opacity=".75"/><rect x="64" y="46" width="18" height="28" rx="4" fill="#fff" opacity=".55"/></svg>PipelineOS</span>
+    <nav><a>My Activities</a><a>Pipeline</a><a>Leads</a><a class="on">Automations</a><a>Team</a></nav>
+    <span class="hright" style="margin-left:auto"><span class="avatar">AD</span></span>
+  </header>
+  <h2 class="sec">Automations <button class="btn sm" style="margin-left:8px">+ New rule</button></h2>
+  <table>
+    <thead><tr><th>Rule</th><th>Trigger</th><th>Conditions</th><th>Actions</th><th>Active</th><th></th></tr></thead>
+    <tbody>
+      <tr><td><b>New lead → assign + call in 15 min</b></td><td><span class="pill blue">lead.created</span></td><td style="color:var(--muted)">always</td><td class="rule-actions"><div>👤 owner → round robin (least loaded)</div><div>➕ activity “First response call (SLA)”</div><div>🔔 notify owner</div></td><td><input type="checkbox" checked></td><td><button class="btn ghost sm">Runs</button></td></tr>
+      <tr><td><b>Won → onboarding handoff</b></td><td><span class="pill green">deal.won</span></td><td style="color:var(--muted)">always</td><td class="rule-actions"><div>➕ task “Start onboarding + handoff to ops” (+1d)</div><div>🔔 notify</div></td><td><input type="checkbox" checked></td><td><button class="btn ghost sm">Runs</button></td></tr>
+      <tr><td><b>Proposal Sent → follow-up in 2d</b></td><td><span class="pill blue">deal.stage_changed</span></td><td>stage = Proposal Sent</td><td class="rule-actions"><div>➕ call “Follow up on proposal” (+2d)</div></td><td><input type="checkbox" checked></td><td><button class="btn ghost sm">Runs</button></td></tr>
+      <tr><td><b>Idle 3+ days → nudge owner</b></td><td><span class="pill amber">deal.stage_idle</span></td><td>days_idle ≥ 3</td><td class="rule-actions"><div>🔔 “Deal idle too long”</div></td><td><input type="checkbox" checked></td><td><button class="btn ghost sm">Runs</button></td></tr>
+      <tr><td><b>Big deal alert (&gt;₹5L)</b></td><td><span class="pill blue">deal.created</span></td><td>value ≥ 500000</td><td class="rule-actions"><div>🔔 “High-value deal created”</div></td><td><input type="checkbox" checked></td><td><button class="btn ghost sm">Runs</button></td></tr>
+    </tbody>
+  </table>
+  <div class="card" style="max-width:640px">
+    <h3>Recent runs — New lead → assign + call in 15 min</h3>
+    <div style="font-size:12.5px;padding:6px 0;border-bottom:1px solid var(--line)"><span class="pill green">success</span> lead.created · today 09:31<br>✓ owner → rep2 &nbsp;✓ activity created &nbsp;✓ notified rep2</div>
+    <div style="font-size:12.5px;padding:6px 0"><span class="pill green">success</span> lead.created · today 08:30<br>✓ owner → rep1 &nbsp;✓ activity created &nbsp;✓ notified rep1</div>
+  </div>
+</section>
+
+<!-- ══ 9 TEAM ══ -->
+<section class="screen" id="s-team">
+  <header>
+    <span class="logo"><svg width="24" height="24" viewBox="0 0 96 96"><rect width="96" height="96" rx="20" fill="#0052cc"/><rect x="14" y="22" width="18" height="52" rx="4" fill="#fff" opacity=".95"/><rect x="39" y="34" width="18" height="40" rx="4" fill="#fff" opacity=".75"/><rect x="64" y="46" width="18" height="28" rx="4" fill="#fff" opacity=".55"/></svg>PipelineOS</span>
+    <nav><a>My Activities</a><a>Pipeline</a><a>Leads</a><a>Automations</a><a class="on">Team</a></nav>
+    <span class="hright" style="margin-left:auto"><span class="avatar">AD</span></span>
+  </header>
+  <h2 class="sec">Team <button class="btn sm" style="margin-left:8px">+ Add user</button> <span class="pill" style="margin-left:8px">seats 4/25 · growth plan</span></h2>
+  <table>
+    <thead><tr><th>User</th><th>Email</th><th>Role</th><th>Team</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody>
+      <tr><td><span class="avatar xs" style="display:inline-flex;margin-right:7px">AD</span><b>admin</b></td><td>admin@trebound.com</td><td><span class="pill blue">admin</span></td><td>Corporate Sales</td><td><span class="pill green">active</span></td><td></td></tr>
+      <tr><td><span class="avatar xs" style="display:inline-flex;margin-right:7px">MG</span>manager</td><td>manager@trebound.com</td><td><span class="pill">manager</span></td><td>Corporate Sales</td><td><span class="pill green">active</span></td><td><button class="btn ghost sm">Transfer records</button> <button class="btn danger sm">Deactivate</button></td></tr>
+      <tr><td><span class="avatar xs" style="display:inline-flex;margin-right:7px">R1</span>rep1</td><td>rep1@trebound.com</td><td><span class="pill">member</span></td><td>Corporate Sales</td><td><span class="pill green">active</span></td><td><button class="btn ghost sm">Transfer records</button> <button class="btn danger sm">Deactivate</button></td></tr>
+      <tr style="opacity:.55"><td><span class="avatar xs" style="display:inline-flex;margin-right:7px">EX</span>ex_employee</td><td>gone@trebound.com</td><td><span class="pill">member</span></td><td>Corporate Sales</td><td><span class="pill red">deactivated</span></td><td style="font-size:12px;color:var(--muted)">records → rep1 · tokens killed instantly</td></tr>
+    </tbody>
+  </table>
+  <div class="note">U-3: deactivation kills sessions & API tokens the same second; “Transfer records” reassigns every lead, deal, contact and activity in one click — the employee-turned-competitor defence.</div>
+</section>
+
+<!-- ══ 10 SETTINGS ══ -->
+<section class="screen" id="s-settings">
+  <header>
+    <span class="logo"><svg width="24" height="24" viewBox="0 0 96 96"><rect width="96" height="96" rx="20" fill="#0052cc"/><rect x="14" y="22" width="18" height="52" rx="4" fill="#fff" opacity=".95"/><rect x="39" y="34" width="18" height="40" rx="4" fill="#fff" opacity=".75"/><rect x="64" y="46" width="18" height="28" rx="4" fill="#fff" opacity=".55"/></svg>PipelineOS</span>
+    <nav><a>My Activities</a><a>Pipeline</a><a>Leads</a><a>Team</a></nav>
+    <span class="hright" style="margin-left:auto"><b style="color:var(--ink)">⚙ Settings</b><span class="avatar">AD</span></span>
+  </header>
+  <div class="card"><h3>📬 Mailbox (Gmail)</h3><p class="d">Two-way sync: mail linked to CRM contacts lands on deal & contact timelines. Privacy default: linked-only.</p>
+    <span class="pill amber">pending</span> admin@trebound.com — awaiting Google authorization <button class="btn ghost sm">Disconnect</button></div>
+  <div class="card"><h3>💳 Plan & usage</h3>
+    <p><span class="pill blue">growth</span> ₹9,999/mo · <b>seats 4/25</b> · 47 deals · 128 leads · 36.4 MB files</p>
+    <div class="bar" style="width:280px;margin-top:6px"><i style="width:16%"></i></div>
+  </div>
+  <div class="card"><h3>🔑 API keys</h3><p class="d">For app.trebound.com, CHAP, Zapier. Docs at <code>/api/v1/docs/</code> · 600 req/hr per workspace.</p>
+    <div class="keyonce">Copy now — shown only once: <b>pk_live_4r8SJcQvXk29fBmT7wLzGdH…</b></div>
+    <table style="width:100%;margin:6px 0 0">
+      <thead><tr><th>Name</th><th>Key</th><th>Scope</th><th>Last used</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        <tr><td>proposal-builder</td><td><code>pk_live_4r8S…</code></td><td>write</td><td>2 min ago</td><td><span class="pill green">active</span></td><td><button class="btn danger sm">Revoke</button></td></tr>
+        <tr><td>asha-chatbot</td><td><code>pk_live_9kQz…</code></td><td>read</td><td>1 hr ago</td><td><span class="pill green">active</span></td><td><button class="btn danger sm">Revoke</button></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="card"><h3>🔔 Daily digest</h3><p class="d">08:00 every morning: overdue activities, today's schedule, new leads — only when there's something to report.</p></div>
+</section>
+
+</div>
+
+<footer class="mock">
+  <b>PipelineOS mockup</b> — every element above corresponds to a shipped, tested feature (129 tests). Use the dark bar to flip screens.
+  Workflow: lead captured (chatbot/form/manual) → auto-assigned + SLA call → convert to deal → kanban with rotting & next-activity discipline → products/custom fields/files on the deal → won → automation hands off to ops → reports close the loop.
+</footer>
+
+<script>
+document.querySelectorAll(".mock-picker button").forEach(function(b){
+  b.addEventListener("click",function(){
+    document.querySelectorAll(".mock-picker button").forEach(function(x){x.classList.remove("on")});
+    document.querySelectorAll(".screen").forEach(function(s){s.classList.remove("on")});
+    b.classList.add("on");
+    document.getElementById("s-"+b.dataset.s).classList.add("on");
+    window.scrollTo({top:0});
+  });
+});
+</script>
+</body>
+</html>

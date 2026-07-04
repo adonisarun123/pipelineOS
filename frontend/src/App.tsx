@@ -14,6 +14,7 @@ import SearchBox from "./SearchBox";
 import Settings from "./Settings";
 import Team from "./Team";
 import type { Auth } from "./types";
+import { Toasts } from "./ui";
 
 type View = "activities" | "pipeline" | "leads" | "contacts" | "import" | "team"
   | "settings" | "automations" | "reports";
@@ -88,6 +89,7 @@ export default function App() {
         <DealDetail dealId={searchDeal} onClose={() => setSearchDeal(null)}
           onChanged={() => undefined} />
       )}
+      <Toasts />
     </div>
   );
 }

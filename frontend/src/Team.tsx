@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "./api";
+import { ConfirmDialog, SelectDialog, toast } from "./ui";
 
 interface UserRow {
   id: number;
@@ -14,32 +15,14 @@ interface UserRow {
 export default function Team({ selfId }: { selfId: number }) {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [msg, setMsg] = useState("");
+  const [deactivating, setDeactivating] = useState<UserRow | null>(null);
+  const [transferring, setTransferring] = useState<UserRow | null>(null);
 
   const load = useCallback(async () => setUsers(await api<UserRow[]>("/users/")), []);
   useEffect(() => { void load(); }, [load]);
 
-  const deactivate = async (u: UserRow) => {
-    if (!confirm(`Deactivate ${u.username}? Their sessions and API tokens die immediately.`)) return;
-    await api(`/users/${u.id}/deactivate/`, { method: "POST", body: {} });
-    setMsg(`${u.username} deactivated.`);
-    void load();
-  };
-
-  const transfer = async (u: UserRow) => {
-    const others = users.filter((x) => x.id !== u.id && x.is_active);
-    const pick = prompt(
-      `Transfer ALL of ${u.username}'s records to:\n`
-      + others.map((x, i) => `${i + 1}. ${x.username} (${x.role})`).join("\n")
-      + "\nEnter number:",
-    );
-    const target = others[Number(pick) - 1];
-    if (!target) return;
-    const r = await api<{ transferred: Record<string, number> }>(
-      `/users/${u.id}/transfer/`, { method: "POST", body: { to_user_id: target.id } },
-    );
-    setMsg(`Moved to ${target.username}: `
-      + Object.entries(r.transferred).map(([k, v]) => `${v} ${k}s`).join(", "));
-  };
+  const deactivate = (u: UserRow) => setDeactivating(u);
+  const transfer = (u: UserRow) => setTransferring(u);
 
   return (
     <div style={{ padding: "0 20px" }}>
@@ -67,6 +50,37 @@ export default function Team({ selfId }: { selfId: number }) {
           ))}
         </tbody>
       </table>
+      {deactivating && (
+        <ConfirmDialog title={`Deactivate ${deactivating.username}?`} danger
+          body="Their sessions and API tokens are revoked the same second. Their records stay — transfer them first if someone else should own them."
+          confirmLabel="Deactivate now"
+          onConfirm={async () => {
+            await api(`/users/${deactivating.id}/deactivate/`,
+              { method: "POST", body: {} });
+            toast.ok(`${deactivating.username} deactivated — tokens revoked.`);
+            void load();
+          }}
+          onClose={() => setDeactivating(null)} />
+      )}
+      {transferring && (
+        <SelectDialog title={`Transfer ${transferring.username}'s records`}
+          body="Every lead, deal, contact and activity they own moves in one step. This is audit-logged."
+          confirmLabel="Transfer everything"
+          options={users.filter((x) => x.id !== transferring.id && x.is_active)
+            .map((x) => ({ id: x.id, label: `${x.username} (${x.role})` }))}
+          onConfirm={async (targetId) => {
+            const r = await api<{ transferred: Record<string, number>;
+              to_user: string }>(
+              `/users/${transferring.id}/transfer/`,
+              { method: "POST", body: { to_user_id: targetId } });
+            const detail = Object.entries(r.transferred)
+              .filter(([, v]) => v > 0).map(([k, v]) => `${v} ${k}s`).join(", ");
+            setMsg(`Moved to ${r.to_user}: ${detail || "nothing owned"}`);
+            toast.ok(`Records transferred to ${r.to_user}.`);
+            void load();
+          }}
+          onClose={() => setTransferring(null)} />
+      )}
     </div>
   );
 }

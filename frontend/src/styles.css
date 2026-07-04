@@ -44,6 +44,9 @@ dialog { border: none; border-radius: 8px; padding: 20px; box-shadow: 0 8px 24px
 dialog form { display: flex; flex-direction: column; gap: 10px; }
 .dupewarn { background: #fffae6; border: 1px solid var(--warn); border-radius: 4px; padding: 6px 10px; font-size: 12px; }
 .calllink { text-decoration: none; }
+@keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; } }
+.deal.moving { opacity: .55; }
 
 /* M-2: mobile (Android PWA priority) */
 @media (max-width: 640px) {

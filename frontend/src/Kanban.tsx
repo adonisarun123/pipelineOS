@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, inr } from "./api";
 import DealDetail from "./DealDetail";
 import ScheduleDialog from "./ScheduleDialog";
+import { ConfirmDialog, EmptyState, SelectDialog, Skeleton, toast } from "./ui";
 import type {
   Deal, Kanban as KanbanData, LostReason, Paginated, Pipeline, PipelineSummary,
 } from "./types";
@@ -30,16 +31,24 @@ export default function Kanban() {
   const [pid, setPid] = useState<number | null>(null);
   const [board, setBoard] = useState<KanbanData | null>(null);
   const [reasons, setReasons] = useState<LostReason[]>([]);
-  const [err, setErr] = useState("");
   const [openDeal, setOpenDeal] = useState<number | null>(null);
   const [scheduleFor, setScheduleFor] = useState<{ id: number; title: string } | null>(null);
   const [mineOnly, setMineOnly] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [winning, setWinning] = useState<Deal | null>(null);
+  const [losing, setLosing] = useState<Deal | null>(null);
   const [summary, setSummary] = useState<PipelineSummary | null>(null);
   const [nudges, setNudges] = useState<string[]>([]);
 
   const load = useCallback(async (p: number, mine = mineOnly) => {
-    setBoard(await api<KanbanData>(`/pipelines/${p}/kanban/${mine ? "?owner=me" : ""}`));
-    setSummary(await api<PipelineSummary>(`/pipelines/${p}/summary/`));
+    try {
+      setBoard(await api<KanbanData>(`/pipelines/${p}/kanban/${mine ? "?owner=me" : ""}`));
+      setSummary(await api<PipelineSummary>(`/pipelines/${p}/summary/`));
+    } catch {
+      toast.err("Couldn't load the board — check your connection.");
+    } finally {
+      setLoading(false);
+    }
   }, [mineOnly]);
 
   useEffect(() => {
@@ -58,32 +67,35 @@ export default function Kanban() {
   const onDrop = async (e: React.DragEvent<HTMLDivElement>, stageId: number) => {
     e.preventDefault();
     e.currentTarget.classList.remove("dragover");
-    const dealId = e.dataTransfer.getData("text/plain");
+    const dealId = Number(e.dataTransfer.getData("text/plain"));
+    if (!board) return;
+    // Optimistic: move the card locally NOW, roll back on failure.
+    const prev = board;
+    let moved: Deal | undefined;
+    const stripped = board.columns.map((c) => {
+      const hit = c.deals.find((d) => d.id === dealId);
+      if (hit) moved = hit;
+      return { ...c, deals: c.deals.filter((d) => d.id !== dealId) };
+    });
+    if (!moved) return;
+    setBoard({ ...board, columns: stripped.map((c) =>
+      c.stage.id === stageId
+        ? { ...c, deals: [{ ...moved!, stage: stageId }, ...c.deals],
+            count: c.count + 1 }
+        : { ...c, count: c.deals.length }) });
     try {
-      const moved = await api<Deal & { nudges: string[] }>(
+      const r = await api<Deal & { nudges: string[] }>(
         `/deals/${dealId}/move/`, { method: "POST", body: { stage_id: stageId } });
-      setErr("");
-      setNudges(moved.nudges ?? []); // CF-2: prompt, don't block
+      setNudges(r.nudges ?? []); // CF-2: prompt, don't block
+      refresh(); // reconcile totals/flags
     } catch {
-      setErr("Move failed");
+      setBoard(prev); // rollback
+      toast.err("Move failed — the card is back where it was.");
     }
-    refresh();
   };
 
-  const onWon = async (deal: Deal) => {
-    if (!confirm(`Mark "${deal.title}" as WON?`)) return;
-    await api(`/deals/${deal.id}/won/`, { method: "POST" });
-    refresh();
-  };
-
-  const onLost = async (deal: Deal) => {
-    const labels = reasons.map((r, i) => `${i + 1}. ${r.label}`).join("\n");
-    const pick = prompt(`Lost reason (required):\n${labels}\nEnter number:`);
-    const reason = reasons[Number(pick) - 1];
-    if (!reason) return;
-    await api(`/deals/${deal.id}/lost/`, { method: "POST", body: { lost_reason_id: reason.id } });
-    refresh();
-  };
+  const onWon = (deal: Deal) => setWinning(deal);
+  const onLost = (deal: Deal) => setLosing(deal);
 
   const quickAdd = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -116,7 +128,6 @@ export default function Kanban() {
           My deals only
         </label>
         <ExportButton pid={pid} />
-        <span className="err">{err}</span>
         {summary && (
           <span style={{ marginLeft: "auto", color: "var(--muted)", fontSize: 13 }}>
             {summary.open_count} open · {inr(summary.open_value)} · forecast{" "}
@@ -140,8 +151,13 @@ export default function Kanban() {
         <input name="value" type="number" placeholder="Value (INR)" />
         <button>Add deal</button>
       </form>
+      {loading && <Skeleton rows={3} height={90} />}
+      {!loading && board && board.columns.every((c) => c.count === 0) && (
+        <EmptyState icon="📊" title="Your pipeline is empty"
+          body="Add your first deal above, or convert a lead from the Leads tab. Deals move left to right as they progress — and turn red when they need attention." />
+      )}
       <div className="board">
-        {board?.columns.map((c) => (
+        {!loading && board?.columns.map((c) => (
           <div
             key={c.stage.id}
             className="col"
@@ -189,6 +205,29 @@ export default function Kanban() {
       {scheduleFor && (
         <ScheduleDialog dealId={scheduleFor.id} dealTitle={scheduleFor.title} open
           onClose={() => setScheduleFor(null)} onScheduled={refresh} />
+      )}
+      {winning && (
+        <ConfirmDialog title="Mark deal as won 🎉"
+          body={`"${winning.title}" (${inr(winning.value)}) will move to Won and count toward this month's revenue.`}
+          confirmLabel="Mark won"
+          onConfirm={async () => {
+            await api(`/deals/${winning.id}/won/`, { method: "POST" });
+            toast.ok(`${winning.title} won — nice work.`);
+            refresh();
+          }}
+          onClose={() => setWinning(null)} />
+      )}
+      {losing && (
+        <SelectDialog title="Mark deal as lost" danger confirmLabel="Mark lost"
+          body={`Why was "${losing.title}" lost? This feeds the lost-reasons report.`}
+          options={reasons.map((r) => ({ id: r.id, label: r.label }))}
+          onConfirm={async (reasonId) => {
+            await api(`/deals/${losing.id}/lost/`,
+              { method: "POST", body: { lost_reason_id: reasonId } });
+            toast.info(`${losing.title} marked lost.`);
+            refresh();
+          }}
+          onClose={() => setLosing(null)} />
       )}
     </div>
   );

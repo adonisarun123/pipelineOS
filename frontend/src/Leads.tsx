@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, inr } from "./api";
 import type { Lead, LeadSource, LeadStatus, LostReason, Paginated, Pipeline } from "./types";
+import { EmptyState, Modal, SelectDialog, Skeleton, toast } from "./ui";
 
 const OPEN_STATUSES: LeadStatus[] = ["new", "attempted", "contacted"];
 
@@ -19,6 +20,9 @@ export default function Leads() {
   const [converting, setConverting] = useState<Lead | null>(null);
   const [callLog, setCallLog] = useState<Lead | null>(null);  // M-3 assist
   const pendingCall = useRef<Lead | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [dqFor, setDqFor] = useState<Lead | null>(null);
+  const [savingView, setSavingView] = useState(false);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [views, setViews] = useState<{ id: number; name: string; params: { status?: string } }[]>([]);
 
@@ -26,12 +30,11 @@ export default function Leads() {
     void api<{ id: number; name: string; params: { status?: string } }[]>(
       "/saved-views/?entity=lead").then(setViews);
 
-  const saveView = async () => {
-    const name = prompt("Save current filter as (name):");
-    if (!name) return;
-    const shared = confirm("Share this view with your team?");
+  const saveView = async (name: string, shared: boolean) => {
     await api("/saved-views/", { method: "POST",
       body: { name, entity: "lead", params: { status: filter }, is_shared: shared } });
+    toast.ok(`View "${name}" saved${shared ? " and shared with your team" : ""}.`);
+    setSavingView(false);
     loadViews();
   };
 
@@ -44,6 +47,7 @@ export default function Leads() {
     } else {
       setLeads((await api<Paginated<Lead>>(`/leads/?status=${filter}`)).results);
     }
+    setLoading(false);
   }, [filter]);
 
   useEffect(() => { void load(); }, [load]);
@@ -110,14 +114,7 @@ export default function Leads() {
     void load();
   };
 
-  const disqualify = async (lead: Lead) => {
-    const labels = reasons.map((r, i) => `${i + 1}. ${r.label}`).join("\n");
-    const pick = prompt(`Disqualify reason (required):\n${labels}\nEnter number:`);
-    const reason = reasons[Number(pick) - 1];
-    if (!reason) return;
-    await api(`/leads/${lead.id}/disqualify/`, { method: "POST", body: { reason_id: reason.id } });
-    void load();
-  };
+  const disqualify = (lead: Lead) => setDqFor(lead);
 
   const convert = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -177,8 +174,14 @@ export default function Leads() {
             {views.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
           </select>
         )}
-        <button className="ghost" onClick={() => void saveView()}>Save view</button>
+        <button className="ghost" onClick={() => setSavingView(true)}>Save view</button>
       </div>
+      {loading && <Skeleton rows={4} height={46} />}
+      {!loading && leads.length === 0 && (
+        <EmptyState icon="🎯" title="No leads here yet"
+          body="Add one above, or point your website form and chatbot at your capture URL (Settings → lead sources) and they'll appear on their own — assigned and with an SLA call scheduled." />
+      )}
+      {!loading && leads.length > 0 && (
       <table className="leads">
         <thead>
           <tr><th>Name</th><th>Organization</th><th>Phone</th><th>Source</th>
@@ -229,6 +232,39 @@ export default function Leads() {
           ))}
         </tbody>
       </table>
+      )}
+      {dqFor && (
+        <SelectDialog title="Disqualify lead" danger confirmLabel="Disqualify"
+          body={`Why is "${dqFor.name}" not a fit? Reasons feed the source-quality reports.`}
+          options={reasons.map((r) => ({ id: r.id, label: r.label }))}
+          onConfirm={async (reasonId) => {
+            await api(`/leads/${dqFor.id}/disqualify/`,
+              { method: "POST", body: { reason_id: reasonId } });
+            toast.info(`${dqFor.name} disqualified.`);
+            void load();
+          }}
+          onClose={() => setDqFor(null)} />
+      )}
+      {savingView && (
+        <Modal title="Save current view" onClose={() => setSavingView(false)}>
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            const f = new FormData(e.currentTarget);
+            const name = (f.get("name") as string).trim();
+            if (name) void saveView(name, f.get("shared") === "on");
+          }} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <input name="name" placeholder="View name (e.g. Hot inbound)" required />
+            <label style={{ fontSize: 13.5 }}>
+              <input type="checkbox" name="shared" /> Share with my team
+            </label>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button type="button" className="ghost"
+                onClick={() => setSavingView(false)}>Cancel</button>
+              <button>Save view</button>
+            </div>
+          </form>
+        </Modal>
+      )}
       {callLog && (
         <div className="dupewarn" style={{ margin: "8px 20px", display: "flex",
           gap: 8, alignItems: "center", flexWrap: "wrap" }}>
